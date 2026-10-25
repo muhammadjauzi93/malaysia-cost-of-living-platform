@@ -1,0 +1,82 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v7
+        with:
+          python-version: "3.12"
+      - run: uv sync --locked
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+
+  # Full suite, including integration tests against a real Postgres, on every supported Python.
+  test-linux:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12", "3.13"]
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci
+          POSTGRES_DB: col_ci
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U ci -d col_ci"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      TEST_DB_URL: postgresql+psycopg2://ci:ci@localhost:5432/col_ci
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v7
+        with:
+          python-version: ${{ matrix.python-version }}
+      - run: uv sync --locked
+      - run: uv run pytest -v
+
+  # Windows: service containers only run on Linux runners, so integration tests skip here.
+  # What this job proves is that installing and invoking the project works on Windows.
+  test-windows-uv:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v7
+        with:
+          python-version: "3.12"
+      - run: uv sync --locked
+      - run: uv run pytest -v
+      - run: uv run col-pipeline --help
+      - run: uv run python tasks.py help
+
+  # The no-uv path from the README, on both OS families.
+  pip-fallback:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python tasks.py setup --pip
+      - run: python tasks.py lint
+      - run: python tasks.py test
+      - name: Console script exists (Windows)
+        if: runner.os == 'Windows'
+        run: .venv\Scripts\col-pipeline.exe --help
+      - name: Console script exists (Unix)
+        if: runner.os != 'Windows'
+        run: .venv/bin/col-pipeline --help

@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "col-pipeline"
+version = "0.1.0"
+description = "Malaysia Cost-of-Living Data Platform: Phase 1 (fuel price ingestion)"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "requests>=2.32",
+    "pandas>=2.2",
+    "SQLAlchemy>=2.0",
+    "psycopg2-binary>=2.9",
+    "python-dotenv>=1.0",
+    "tenacity>=8.2",
+]
+
+[project.scripts]
+# Installs a `col-pipeline` command into the venv on every OS (col-pipeline.exe on Windows).
+col-pipeline = "col_pipeline.cli:main"
+
+[dependency-groups]
+# PEP 735 groups: `uv sync` installs these by default; pip >= 25.1 uses `--group dev`.
+dev = ["pytest>=8.0", "ruff>=0.5"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = ["integration: needs a live Postgres (set TEST_DB_URL)"]

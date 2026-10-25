@@ -1,6 +1,6 @@
 # 🇲🇾 Malaysia Cost-of-Living Data Platform
 
-![CI](https://github.com/<your-username>/malaysia-cost-of-living-platform/actions/workflows/ci.yml/badge.svg)
+[![CI](https://github.com/muhammadjauzi93/malaysia-cost-of-living-platform/actions/workflows/ci.yml/badge.svg)](https://github.com/muhammadjauzi93/malaysia-cost-of-living-platform/actions/workflows/ci.yml)
 
 An end-to-end data platform that tracks Malaysian fuel prices, inflation and the ringgit,
 built to answer one question: **how do pump prices flow through to the cost of living, and

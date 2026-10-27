@@ -60,3 +60,92 @@ def test_unknown_task_returns_usage_error(capsys):
 @pytest.mark.parametrize("name", sorted(tasks.TASKS))
 def test_every_task_has_a_one_line_description(name):
     assert (tasks.TASKS[name].__doc__ or "").strip()
+
+
+# ---------- dbt wiring ----------
+
+
+def test_dbt_tasks_exist():
+    assert {"dbt", "dbt-build", "dbt-freshness", "load-sample"} <= set(tasks.TASKS)
+
+
+def test_read_dotenv_handles_comments_quotes_and_export(tmp_path):
+    env_file = tmp_path / ".env"
+    env_file.write_text(
+        "\ufeff# a comment\n"
+        "POSTGRES_USER=col_user\n"
+        "export POSTGRES_DB=col_platform   # inline comment\n"
+        'POSTGRES_PASSWORD="p@ss word#1"\n'
+        "\n"
+        "NOT_A_PAIR\n",
+        encoding="utf-8",
+    )
+    assert tasks.read_dotenv(env_file) == {
+        "POSTGRES_USER": "col_user",
+        "POSTGRES_DB": "col_platform",
+        "POSTGRES_PASSWORD": "p@ss word#1",  # a '#' inside quotes is part of the value
+    }
+
+
+def test_read_dotenv_missing_file_is_empty(tmp_path):
+    assert tasks.read_dotenv(tmp_path / "nope.env") == {}
+
+
+def test_dbt_env_from_postgres_variables(tmp_path):
+    env = tasks.dbt_env(
+        {"POSTGRES_USER": "u", "POSTGRES_PASSWORD": "pw", "POSTGRES_DB": "d"},
+        env_file=tmp_path / "none.env",
+    )
+    assert env["POSTGRES_HOST"] == "localhost"
+    assert env["POSTGRES_PORT"] == "5433"  # the docker-compose host port, as in config.py
+    assert (env["POSTGRES_USER"], env["POSTGRES_PASSWORD"], env["POSTGRES_DB"]) == ("u", "pw", "d")
+
+
+def test_dbt_env_db_url_wins_and_decodes_the_password(tmp_path):
+    env = tasks.dbt_env(
+        {
+            "DB_URL": "postgresql+psycopg2://ci:p%40ss%3Aword@db.example.com:6543/warehouse",
+            "POSTGRES_USER": "ignored",
+            "POSTGRES_PASSWORD": "ignored",
+            "POSTGRES_DB": "ignored",
+        },
+        env_file=tmp_path / "none.env",
+    )
+    assert env["POSTGRES_USER"] == "ci"
+    assert env["POSTGRES_PASSWORD"] == "p@ss:word"  # percent-encoding undone
+    assert (env["POSTGRES_HOST"], env["POSTGRES_PORT"]) == ("db.example.com", "6543")
+    assert env["POSTGRES_DB"] == "warehouse"
+
+
+def test_dbt_env_db_url_without_a_port_means_postgres_default(tmp_path):
+    env = tasks.dbt_env(
+        {"DB_URL": "postgresql+psycopg2://ci:ci@localhost/col_ci"}, env_file=tmp_path / "none.env"
+    )
+    assert env["POSTGRES_PORT"] == "5432"
+
+
+def test_real_environment_beats_the_dotenv_file(tmp_path):
+    env_file = tmp_path / ".env"
+    env_file.write_text("POSTGRES_USER=from_file\nPOSTGRES_PASSWORD=pw\nPOSTGRES_DB=d\n")
+    env = tasks.dbt_env({"POSTGRES_USER": "from_environment"}, env_file=env_file)
+    assert env["POSTGRES_USER"] == "from_environment"
+    assert env["POSTGRES_PASSWORD"] == "pw"  # still filled in from the file
+
+
+def test_dbt_env_reports_every_missing_setting(tmp_path):
+    with pytest.raises(RuntimeError, match="POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_DB"):
+        tasks.dbt_env({}, env_file=tmp_path / "none.env")
+
+
+def test_dbt_env_points_dbt_at_the_dbt_folder(tmp_path):
+    env = tasks.dbt_env(
+        {"POSTGRES_USER": "u", "POSTGRES_PASSWORD": "p", "POSTGRES_DB": "d"},
+        env_file=tmp_path / "none.env",
+    )
+    assert Path(env["DBT_PROJECT_DIR"]) == ROOT / "dbt"
+    assert Path(env["DBT_PROFILES_DIR"]) == ROOT / "dbt"
+
+
+def test_dbt_dependencies_are_declared_in_pyproject():
+    names = " ".join(tasks.group_dependencies("dbt"))
+    assert "dbt-core" in names and "dbt-postgres" in names

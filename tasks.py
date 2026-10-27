@@ -16,8 +16,9 @@ import shutil
 import subprocess
 import sys
 import venv
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from pathlib import Path
+from urllib.parse import unquote, urlsplit
 
 # Checked before importing tomllib (3.11+), so old interpreters get a clear message.
 if sys.version_info < (3, 11):  # noqa: UP036
@@ -76,10 +77,14 @@ def py(*args: str, env: dict[str, str] | None = None) -> int:
     return sh(project_python(), *args, env=env)
 
 
-def dev_dependencies() -> list[str]:
-    """Read the dev group from pyproject.toml, so it is declared in exactly one place."""
+def group_dependencies(group: str) -> list[str]:
+    """Read a dependency group from pyproject.toml, so it is declared in exactly one place."""
     with open(ROOT / "pyproject.toml", "rb") as f:
-        return tomllib.load(f)["dependency-groups"]["dev"]
+        return tomllib.load(f)["dependency-groups"][group]
+
+
+def dev_dependencies() -> list[str]:
+    return group_dependencies("dev")
 
 
 def ensure_env_file() -> None:
@@ -108,7 +113,7 @@ def setup(args: list[str]) -> int:
     return (
         sh(python, "-m", "pip", "install", "--upgrade", "pip")
         or sh(python, "-m", "pip", "install", "-e", ".")
-        or sh(python, "-m", "pip", "install", *dev_dependencies())
+        or sh(python, "-m", "pip", "install", *dev_dependencies(), *group_dependencies("dbt"))
     )
 
 
@@ -232,6 +237,114 @@ def monitor(args: list[str]) -> int:
 def validate(args: list[str]) -> int:
     """Check that Dagster can load every definition (CI runs this too)."""
     return py("-m", "dagster", "definitions", "validate", "-m", DAGSTER_MODULE, env=dagster_env())
+
+
+# ---------- dbt ----------
+
+DBT_DIR = ROOT / "dbt"
+# Calling the entry point directly avoids the RuntimeWarning that `python -m dbt.cli.main` prints.
+DBT_ENTRY = "from dbt.cli.main import cli; cli(prog_name='dbt')"
+
+
+def read_dotenv(path: Path) -> dict[str, str]:
+    """Minimal .env reader (KEY=VALUE, comments, optional quotes), standard library only.
+
+    tasks.py cannot import python-dotenv because it runs before `setup` has installed anything.
+    """
+    values: dict[str, str] = {}
+    if not path.exists():
+        return values
+    for raw_line in path.read_text(encoding="utf-8-sig").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, _, value = line.partition("=")
+        key = key.removeprefix("export ").strip()
+        value = value.strip()
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
+            value = value[1:-1]
+        else:
+            value = value.split(" #", 1)[0].strip()  # inline comment on an unquoted value
+        values[key] = value
+    return values
+
+
+def dbt_env(
+    environ: Mapping[str, str] | None = None, env_file: Path | None = None
+) -> dict[str, str]:
+    """Environment variables dbt's profiles.yml reads, built from .env or DB_URL.
+
+    Same precedence as the pipeline (config.db_url_from_env): a real environment variable beats
+    .env, and an explicit DB_URL beats the POSTGRES_* variables. Returns only what dbt needs.
+    """
+    values = {
+        **read_dotenv(env_file or ROOT / ".env"),
+        **(os.environ if environ is None else environ),
+    }
+
+    if url := values.get("DB_URL"):
+        parts = urlsplit(url)
+        pg = {
+            "POSTGRES_HOST": parts.hostname or "localhost",
+            "POSTGRES_PORT": str(parts.port or 5432),  # a URL with no port means Postgres' own 5432
+            "POSTGRES_USER": unquote(parts.username or ""),
+            "POSTGRES_PASSWORD": unquote(parts.password or ""),
+            "POSTGRES_DB": parts.path.lstrip("/"),
+        }
+    else:
+        pg = {
+            "POSTGRES_HOST": values.get("POSTGRES_HOST") or "localhost",
+            "POSTGRES_PORT": values.get("POSTGRES_PORT") or "5433",  # host side of docker compose
+            "POSTGRES_USER": values.get("POSTGRES_USER", ""),
+            "POSTGRES_PASSWORD": values.get("POSTGRES_PASSWORD", ""),
+            "POSTGRES_DB": values.get("POSTGRES_DB", ""),
+        }
+    if missing := [k for k in ("POSTGRES_USER", "POSTGRES_PASSWORD", "POSTGRES_DB") if not pg[k]]:
+        raise RuntimeError(
+            f"Database settings missing: {', '.join(missing)}. "
+            "Run `python tasks.py setup` to create .env, or set DB_URL."
+        )
+    return {**pg, "DBT_PROJECT_DIR": str(DBT_DIR), "DBT_PROFILES_DIR": str(DBT_DIR)}
+
+
+def run_dbt(*args: str) -> int:
+    """Run dbt inside the project venv with the database settings filled in."""
+    try:
+        env = dbt_env()
+    except RuntimeError as exc:
+        print(f"[FAIL] {exc}")
+        return 1
+    return py("-c", DBT_ENTRY, *args, env=env)
+
+
+def dbt_packages_installed() -> bool:
+    return (DBT_DIR / "dbt_packages").is_dir()
+
+
+@task
+def dbt(args: list[str]) -> int:
+    """Run any dbt command with the project wired up: `dbt build`, `dbt test -s stg_fx_rates`."""
+    return run_dbt(*args)
+
+
+@task
+def dbt_build(args: list[str]) -> int:
+    """Install dbt packages if missing, then build every model and run every test."""
+    if not dbt_packages_installed() and (code := run_dbt("deps")):
+        return code
+    return run_dbt("build", *args)
+
+
+@task
+def dbt_freshness(args: list[str]) -> int:
+    """Check that every raw source is fresh enough (limits are in dbt/models/staging)."""
+    return run_dbt("source", "freshness", *args)
+
+
+@task
+def load_sample(args: list[str]) -> int:
+    """Load SYNTHETIC data into an EMPTY database, for CI and dbt work (refuses otherwise)."""
+    return py("-m", "col_pipeline.cli", "load-sample", *args)
 
 
 @task

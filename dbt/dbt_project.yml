@@ -1,0 +1,23 @@
+# dbt project for the Malaysia cost-of-living warehouse (Phase 3).
+# Run it through `python tasks.py dbt ...`, which wires up the profile and the database
+# credentials from .env. See dbt/README.md.
+name: cost_of_living
+version: "0.3.0"
+config-version: 2
+profile: cost_of_living
+
+model-paths: ["models"]
+macro-paths: ["macros"]
+seed-paths: ["seeds"]
+snapshot-paths: ["snapshots"]
+test-paths: ["tests"]
+
+clean-targets: ["target", "dbt_packages"]
+
+models:
+  cost_of_living:
+    # One folder per layer, one schema per layer (see macros/generate_schema_name.sql).
+    # Staging models only rename, cast and trim, so views are enough: no storage, always fresh.
+    staging:
+      +materialized: view
+      +schema: staging

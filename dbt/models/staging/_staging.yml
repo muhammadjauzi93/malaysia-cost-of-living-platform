@@ -1,0 +1,174 @@
+version: 2
+
+# Severity policy for tests in this file:
+#   error (default): a broken contract. Keys, nulls, plausible ranges, fixed code lists.
+#   warn: something NEW appeared (a fuel type, a currency, a quoting unit). The pipeline is
+#         built so new fuel columns become new rows, so a new value must be visible but must
+#         not block the build. Someone then decides whether to extend the list.
+
+models:
+  - name: stg_fuel_prices
+    description: >
+      Weekly retail fuel prices, one row per fuel type per announcement.
+      Grain: one row per (price_date, fuel_type). Prices are MYR per litre and are the
+      published price LEVEL, not the weekly change. Besides the headline fuels (ron95,
+      ron97, diesel) the source carries scheme- and region-specific series; which of them
+      answers the project question is decided in the marts, not here.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [price_date, fuel_type]
+    columns:
+      - name: price_date
+        description: "Date the price took effect (a Thursday in the real series)."
+        data_tests: [not_null]
+      - name: fuel_type
+        description: "Fuel or scheme identifier as the source names it, lower-cased."
+        data_tests:
+          - not_null
+          - accepted_values:
+              name: accepted_values_stg_fuel_prices_fuel_type
+              arguments:
+                values:
+                  - ron95
+                  - ron97
+                  - diesel
+                  - ron95_budi95
+                  - ron95_skps
+                  - diesel_budi
+                  - diesel_skds
+                  - diesel_eastmsia
+              config:
+                severity: warn
+      - name: price_myr
+        description: "Retail price in ringgit per litre."
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 0.50
+                max_value: 10.00
+      - name: source_system
+        description: "Where the row came from. 'synthetic-sample' marks fake CI/demo data."
+        data_tests: [not_null]
+      - name: loaded_at
+        description: >
+          When the pipeline last CHANGED this row. It does not move when a re-run finds the
+          same price, so it is not a measure of freshness.
+        data_tests: [not_null]
+
+  - name: stg_cpi_state
+    description: >
+      Monthly consumer price index by state and COICOP division, base 2010 = 100.
+      Grain: one row per (state_name, month_date, division_code).
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [state_name, month_date, division_code]
+      - dbt_utils.expression_is_true:
+          name: stg_cpi_state_month_date_is_first_of_month
+          arguments:
+            expression: "extract(day from month_date) = 1"
+    columns:
+      - name: state_name
+        description: "State or federal territory, as OpenDOSM names it (e.g. W.P. Kuala Lumpur)."
+        data_tests: [not_null]
+      - name: month_date
+        description: "First day of the month the index describes."
+        data_tests: [not_null]
+      - name: division_code
+        description: "COICOP division: '01' to '13', or 'overall' for the all-items index."
+        data_tests:
+          - not_null
+          - accepted_values:
+              name: accepted_values_stg_cpi_state_division_code
+              arguments:
+                values:
+                  ["01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12", "13",
+                   "overall"]
+      - name: cpi_index
+        description: "Index value, base 2010 = 100."
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 30
+                max_value: 300
+      - name: source_system
+        description: "Where the row came from. 'synthetic-sample' marks fake CI/demo data."
+        data_tests: [not_null]
+      - name: loaded_at
+        description: "When the pipeline last changed this row."
+        data_tests: [not_null]
+
+  - name: stg_fx_rates
+    description: >
+      Bank Negara Malaysia exchange rates in MYR. Rates are per `quote_unit` units of the
+      foreign currency, exactly as BNM quotes them: JPY is per 100, the others per 1.
+      Grain: one row per (rate_date, currency_code, session_code).
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [rate_date, currency_code, session_code]
+      - dbt_utils.expression_is_true:
+          name: stg_fx_rates_buying_not_above_selling
+          arguments:
+            expression: "buying_rate <= selling_rate"
+    columns:
+      - name: rate_date
+        description: "Date the rate was published."
+        data_tests: [not_null]
+      - name: currency_code
+        description: "ISO 4217 code of the foreign currency."
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [USD, SGD, CNY, EUR, JPY]
+              config:
+                severity: warn
+      - name: session_code
+        description: "BNM snapshot time. 1700 is the end-of-day interbank rate the pipeline stores."
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ["0900", "1130", "1200", "1700"]
+      - name: quote_unit
+        description: "How many units of foreign currency the rate is quoted for (1, or 100 for JPY)."
+        data_tests:
+          - not_null
+          - accepted_values:
+              name: accepted_values_stg_fx_rates_quote_unit
+              arguments:
+                values: [1, 100]
+                quote: false
+              config:
+                severity: warn
+      - name: buying_rate
+        description: "Bank buying rate, MYR per quote_unit. Can be null if BNM omits it."
+        data_tests:
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 0.01
+                max_value: 1000
+      - name: selling_rate
+        description: "Bank selling rate, MYR per quote_unit. Can be null if BNM omits it."
+        data_tests:
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 0.01
+                max_value: 1000
+      - name: middle_rate
+        description: "Mid-point rate, MYR per quote_unit. Can be null if BNM omits it."
+        data_tests:
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 0.01
+                max_value: 1000
+      - name: source_system
+        description: "Where the row came from. 'synthetic-sample' marks fake CI/demo data."
+        data_tests: [not_null]
+      - name: loaded_at
+        description: "When the pipeline last changed this row."
+        data_tests: [not_null]

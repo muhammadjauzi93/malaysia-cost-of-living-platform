@@ -1,7 +1,8 @@
 # Design decisions
 
 Short records of choices made, the alternatives, and what was traded away.
-Newest at the bottom. Phase 1 = fuel price ingestion.
+Newest at the bottom. Phase 1 = fuel price ingestion, Phase 2 = orchestration and quality,
+Phase 3 = the dbt warehouse (#30 onwards).
 
 ---
 
@@ -253,3 +254,82 @@ or it contradicts both Dagster and the table. So `succeed` accepts a `running` o
 and clears the error message, while `fail` still only closes a `running` one. A `success` is
 never overwritten. **Alternative rejected:** a new run row per load attempt. It would make the
 landing and load phases disagree about which run a batch belongs to.
+
+---
+
+## Phase 3: the dbt warehouse
+
+### 30. Source freshness is judged on the newest data date, not on `loaded_at`
+
+**Context.** The Phase 3 plan was `dbt source freshness` on `loaded_at`, the obvious column.
+But the loader only moves `loaded_at` when a value really changes (#4), and fuel prices can sit
+unchanged for weeks. In the sample data RON95 has 4 distinct prices in 104 weekly rows. Judged
+on `loaded_at`, a healthy pipeline would look stale for most of the year.
+
+**Decision.** `loaded_at_field` is the newest data date (`price_date`, `month_date`,
+`rate_date`), with the same limits Phase 2 enforces in Python: fuel 10 days, CPI 90, FX 5. Warn
+thresholds sit just below (8, 85 and 4 days).
+
+**Trade-off.** A data date cannot tell "the source stopped publishing" from "our pipeline
+stopped"; `ops.pipeline_runs` answers that. A date is read as midnight UTC, up to eight hours
+off the Kuala Lumpur calendar the Python check uses, which does not matter at limits of days.
+**Alternative rejected:** a `last_seen_at` column touched on every run. It would rewrite every
+row on every run and destroy the honest `loaded_at` of #4.
+
+### 31. Plain schema names per layer
+
+dbt normally names schemas `<target>_<custom>`, giving `analytics_staging`. A one-file macro
+override gives `staging`, `intermediate` and `marts`. **Trade-off:** developers sharing a database
+would overwrite each other's models. There is one developer and CI uses a throwaway database;
+with a team, restore the prefix for the dev target.
+
+### 32. `dbt-postgres`, in the same database as `raw`
+
+One database to run, back up and explain, and the raw tables are already there. dbt only reads
+`raw`; it owns every schema downstream of it. **Trade-off:** analytical queries run on a
+row-store and compete with ingestion for one instance. At tens of thousands of rows that is
+irrelevant; DuckDB would win at scale and stays an option because the models use portable SQL
+and `dbt_utils` macros.
+
+### 33. National fuel prices join state CPI by month; fuel is not copied to each state
+
+A pump price has no state. Copying one national RON95 price onto sixteen states would make a
+state-level fact table look like it held sixteen independent observations. So the grains are:
+`fct_fuel_prices` is one row per `(price_date, fuel_type)`, `fct_cpi_state` is one row per
+`(state, month, division)`, and `fct_fuel_vs_transport_cpi` is one row per `(state, month)`,
+carrying the *national* monthly fuel average as a column. **Trade-off:** the dashboard needs one
+join, and states differ in the answer only through their CPI. **Open point:** the source also
+has a series named `diesel_eastmsia`, so "national" is safe for RON95 and RON97 but must be
+checked for diesel before it is used. The headline fuel (RON95) is an assumption to confirm
+against live data.
+
+### 34. Synthetic sample data for CI and dbt development, with three safeguards
+
+CI cannot reach the real APIs, and the test fixtures hold two states, which cannot exercise a
+rule like "every month has 16 states". `col_pipeline.sample_data` generates a deterministic
+dataset with the real shapes (16 states, 14 divisions, several fuel types, five currencies, JPY
+per 100) and loads it through the real quality gate and loader. Safeguards: it is deterministic;
+every row is labelled `source = 'synthetic-sample'`, which flows through dbt; and it refuses to
+load into a database that already has data. **Trade-off:** synthetic data cannot reveal real-world
+surprises (a renamed state, a new division), so it proves the *tests and models work*, not that
+the *real data is clean*. The first live run still has to happen. **Alternative rejected:** a
+committed CSV of real data. It would age past the freshness limits, so freshness could never be
+tested, and it adds a licensing question.
+
+### 35. Tests fail on broken contracts and only warn on "something new"
+
+Keys, nulls, plausible ranges and fixed code lists (CPI divisions, BNM sessions) are errors. A new
+fuel type, an untracked currency or an unusual quoting unit are warnings. The pipeline is
+designed so that a new fuel column becomes new rows (#1), so a new value must be visible but must
+not block the build. **Trade-off:** a warning can be ignored forever. Review `WARN` lines
+whenever `dbt build` prints them, and promote a warning to an error once its list is stable.
+Verified by sabotage: seven deliberate faults produced five errors and three warnings.
+
+### 36. dbt shares the project environment and lock file
+
+One `uv.lock` serves Dagster and dbt. Adding dbt changed no existing pin and added 36 packages;
+`dbt-core` is capped below 2 so a future `uv lock --upgrade` cannot jump a major version.
+`dbt_utils` is installed from git at an exact tag, and `package-lock.yml` is committed, so what
+runs is a specific commit anyone can inspect. **Trade-off:** a future Dagster and dbt version
+conflict would force dbt into its own environment, which is how many teams run it anyway.
+Installing from git needs `git` on the PATH, which this project already requires.

@@ -1,0 +1,142 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 690" width="1200" height="690" font-family="Segoe UI, Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#334155"/>
+    </marker>
+    <marker id="arrow-red" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#dc2626"/>
+    </marker>
+    <marker id="arrow-purple" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#7c3aed"/>
+    </marker>
+    <marker id="arrow-teal" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#0d9488"/>
+    </marker>
+    <marker id="arrow-grey" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#64748b"/>
+    </marker>
+  </defs>
+
+  <!-- background -->
+  <rect width="1200" height="690" rx="20" fill="#ffffff"/>
+  <text x="600" y="48" text-anchor="middle" font-size="24" font-weight="700" fill="#0f172a">Malaysia Cost-of-Living Platform: Architecture</text>
+
+  <!-- Sources container -->
+  <rect x="30" y="90" width="230" height="430" rx="16" fill="#eff6ff" stroke="#3b82f6" stroke-width="2"/>
+  <text x="145" y="120" text-anchor="middle" font-size="14" font-weight="700" fill="#1d4ed8">SOURCES</text>
+
+  <rect x="50" y="137" width="190" height="90" rx="12" fill="#3b82f6"/>
+  <text x="145" y="173" text-anchor="middle" font-size="16" font-weight="700" fill="#ffffff">data.gov.my</text>
+  <text x="145" y="197" text-anchor="middle" font-size="13" fill="#dbeafe">fuel prices · weekly</text>
+
+  <rect x="50" y="247" width="190" height="90" rx="12" fill="#10b981"/>
+  <text x="145" y="283" text-anchor="middle" font-size="16" font-weight="700" fill="#ffffff">OpenDOSM</text>
+  <text x="145" y="307" text-anchor="middle" font-size="13" fill="#d1fae5">CPI by state · monthly</text>
+
+  <rect x="50" y="357" width="190" height="90" rx="12" fill="#f59e0b"/>
+  <text x="145" y="393" text-anchor="middle" font-size="16" font-weight="700" fill="#ffffff">Bank Negara Malaysia</text>
+  <text x="145" y="417" text-anchor="middle" font-size="13" fill="#fef3c7">exchange rates · daily</text>
+
+  <!-- Sources to Land -->
+  <path d="M240,182 H290 M240,292 H290 M240,402 H290" stroke="#334155" stroke-width="2" fill="none"/>
+  <path d="M290,182 V402" stroke="#334155" stroke-width="2" fill="none"/>
+  <path d="M290,182 H340" stroke="#334155" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+
+  <!-- Dagster container -->
+  <rect x="310" y="90" width="470" height="430" rx="16" fill="#f5f3ff" stroke="#8b5cf6" stroke-width="2"/>
+  <text x="330" y="118" font-size="14" font-weight="700" fill="#6d28d9">DAGSTER · schedules, retries, alerts</text>
+
+  <rect x="340" y="150" width="200" height="64" rx="10" fill="#ffffff" stroke="#8b5cf6" stroke-width="2"/>
+  <text x="440" y="178" text-anchor="middle" font-size="15" font-weight="700" fill="#4c1d95">Land</text>
+  <text x="440" y="198" text-anchor="middle" font-size="12" fill="#6b7280">fetch · raw JSON on disk</text>
+
+  <rect x="590" y="150" width="170" height="54" rx="10" fill="#ffffff" stroke="#8b5cf6" stroke-width="2"/>
+  <text x="675" y="173" text-anchor="middle" font-size="14" font-weight="700" fill="#4c1d95">Daily monitor</text>
+  <text x="675" y="191" text-anchor="middle" font-size="12" fill="#6b7280">09:00 KL, no ingestion</text>
+
+  <rect x="590" y="250" width="170" height="64" rx="10" fill="#ffffff" stroke="#8b5cf6" stroke-width="2"/>
+  <text x="675" y="278" text-anchor="middle" font-size="15" font-weight="700" fill="#4c1d95">Freshness</text>
+  <text x="675" y="298" text-anchor="middle" font-size="12" fill="#6b7280">after load and daily</text>
+
+  <polygon points="440,245 550,300 440,355 330,300" fill="#ede9fe" stroke="#7c3aed" stroke-width="2"/>
+  <text x="440" y="291" text-anchor="middle" font-size="14" font-weight="700" fill="#4c1d95">Quality gate</text>
+  <text x="440" y="309" text-anchor="middle" font-size="11" fill="#6b7280">ERROR blocks</text>
+  <text x="440" y="323" text-anchor="middle" font-size="11" fill="#6b7280">WARN reports</text>
+
+  <rect x="340" y="400" width="200" height="64" rx="10" fill="#ffffff" stroke="#8b5cf6" stroke-width="2"/>
+  <text x="440" y="428" text-anchor="middle" font-size="15" font-weight="700" fill="#4c1d95">Load</text>
+  <text x="440" y="448" text-anchor="middle" font-size="12" fill="#6b7280">idempotent upsert</text>
+
+  <!-- Dagster internal flow -->
+  <path d="M440,214 V245" stroke="#334155" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+  <path d="M440,355 V400" stroke="#334155" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+  <text x="450" y="382" font-size="12" font-weight="700" fill="#15803d">pass</text>
+  <path d="M675,204 V250" stroke="#7c3aed" stroke-width="2" stroke-dasharray="6,4" fill="none" marker-end="url(#arrow-purple)"/>
+
+  <!-- Postgres container -->
+  <rect x="840" y="90" width="330" height="430" rx="16" fill="#f0fdfa" stroke="#0d9488" stroke-width="2"/>
+  <text x="1005" y="120" text-anchor="middle" font-size="14" font-weight="700" fill="#0f766e">POSTGRES</text>
+
+  <rect x="870" y="200" width="270" height="150" rx="12" fill="#0d9488"/>
+  <text x="1005" y="230" text-anchor="middle" font-size="16" font-weight="700" fill="#ffffff">raw.* tables</text>
+  <text x="1005" y="258" text-anchor="middle" font-size="13" fill="#ccfbf1">fuel_price_weekly</text>
+  <text x="1005" y="280" text-anchor="middle" font-size="13" fill="#ccfbf1">cpi_state_monthly</text>
+  <text x="1005" y="302" text-anchor="middle" font-size="13" fill="#ccfbf1">fx_rate_daily</text>
+
+  <rect x="870" y="400" width="270" height="64" rx="10" fill="#ffffff" stroke="#0d9488" stroke-width="2"/>
+  <text x="1005" y="428" text-anchor="middle" font-size="15" font-weight="700" fill="#0f766e">ops.pipeline_runs</text>
+  <text x="1005" y="448" text-anchor="middle" font-size="12" fill="#6b7280">audit of every attempt</text>
+
+  <!-- Load writes the data (upsert) and the audit row -->
+  <path d="M540,412 H810 V330 H870" stroke="#334155" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+  <text x="680" y="404" text-anchor="middle" font-size="12" font-weight="700" fill="#334155">upsert</text>
+  <path d="M540,445 H870" stroke="#0d9488" stroke-width="2" stroke-dasharray="6,4" fill="none" marker-end="url(#arrow-teal)"/>
+  <text x="700" y="464" text-anchor="middle" font-size="12" font-weight="700" fill="#0f766e">audit: run closed</text>
+
+  <!-- Land opens the run row (and marks it failed on error) -->
+  <path d="M540,195 H565 V445" stroke="#0d9488" stroke-width="2" stroke-dasharray="6,4" fill="none"/>
+  <circle cx="565" cy="445" r="3.5" fill="#0d9488"/>
+  <text x="572" y="232" font-size="11" font-weight="700" fill="#0f766e">run opened</text>
+
+  <!-- Land reads the watermark to decide what to fetch -->
+  <path d="M870,225 H800 V138 H440 V150" stroke="#0d9488" stroke-width="2" stroke-dasharray="6,4" fill="none" marker-end="url(#arrow-teal)"/>
+  <text x="790" y="132" text-anchor="end" font-size="11" font-weight="700" fill="#0f766e">watermark: what to fetch</text>
+
+  <!-- Freshness reads the raw tables -->
+  <path d="M870,282 H760" stroke="#7c3aed" stroke-width="2" stroke-dasharray="6,4" fill="none" marker-end="url(#arrow-purple)"/>
+
+  <!-- Alerts -->
+  <rect x="340" y="560" width="300" height="56" rx="12" fill="#fee2e2" stroke="#dc2626" stroke-width="2"/>
+  <text x="490" y="584" text-anchor="middle" font-size="15" font-weight="700" fill="#991b1b">Slack or log</text>
+  <text x="490" y="602" text-anchor="middle" font-size="12" fill="#7f1d1d">run-failure sensor alerts</text>
+
+  <path d="M330,300 H320 V588 H340" stroke="#dc2626" stroke-width="2" stroke-dasharray="6,4" fill="none" marker-end="url(#arrow-red)"/>
+  <text x="328" y="490" font-size="12" font-weight="700" fill="#dc2626">gate fail</text>
+  <path d="M740,314 V588 H640" stroke="#dc2626" stroke-width="2" stroke-dasharray="6,4" fill="none" marker-end="url(#arrow-red)"/>
+  <text x="748" y="540" font-size="12" font-weight="700" fill="#dc2626">stale</text>
+
+  <!-- Planned phases -->
+  <path d="M915,520 V560" stroke="#64748b" stroke-width="2" stroke-dasharray="6,4" fill="none" marker-end="url(#arrow-grey)"/>
+  <rect x="840" y="560" width="150" height="56" rx="12" fill="#f8fafc" stroke="#64748b" stroke-width="2" stroke-dasharray="6,4"/>
+  <text x="915" y="584" text-anchor="middle" font-size="15" font-weight="700" fill="#334155">dbt marts</text>
+  <text x="915" y="602" text-anchor="middle" font-size="12" fill="#64748b">Phase 3</text>
+
+  <path d="M990,588 H1010" stroke="#64748b" stroke-width="2" stroke-dasharray="6,4" fill="none" marker-end="url(#arrow-grey)"/>
+  <rect x="1010" y="560" width="160" height="56" rx="12" fill="#f8fafc" stroke="#64748b" stroke-width="2" stroke-dasharray="6,4"/>
+  <text x="1090" y="584" text-anchor="middle" font-size="15" font-weight="700" fill="#334155">Dashboard</text>
+  <text x="1090" y="602" text-anchor="middle" font-size="12" fill="#64748b">Phase 4</text>
+
+  <!-- Legend -->
+  <g font-size="12" fill="#334155">
+    <path d="M40,660 H80" stroke="#334155" stroke-width="2" marker-end="url(#arrow)"/>
+    <text x="90" y="664">data flow</text>
+    <path d="M190,660 H230" stroke="#0d9488" stroke-width="2" stroke-dasharray="6,4"/>
+    <text x="240" y="664">audit and watermark</text>
+    <path d="M400,660 H440" stroke="#7c3aed" stroke-width="2" stroke-dasharray="6,4"/>
+    <text x="450" y="664">monitoring</text>
+    <path d="M550,660 H590" stroke="#dc2626" stroke-width="2" stroke-dasharray="6,4"/>
+    <text x="600" y="664">alerting</text>
+    <path d="M690,660 H730" stroke="#64748b" stroke-width="2" stroke-dasharray="6,4"/>
+    <text x="740" y="664">planned, not built yet</text>
+  </g>
+</svg>

@@ -12,29 +12,7 @@ which states feel it most?**
 
 ## Architecture
 
-```mermaid
-flowchart LR
-    subgraph Sources
-        A[data.gov.my<br/>fuel prices · weekly]
-        B[OpenDOSM<br/>CPI by state · monthly]
-        C[Bank Negara Malaysia<br/>exchange rates · daily]
-    end
-    subgraph Dagster["Dagster: schedules, retries, alerts"]
-        L[landed assets<br/>raw JSON on disk]
-        G{{quality gate<br/>blocking}}
-        R[raw assets<br/>idempotent upsert]
-        F{{freshness<br/>checks}}
-    end
-    subgraph Postgres
-        T[(raw.* tables)]
-        O[(ops.pipeline_runs)]
-    end
-    A & B & C --> L --> G -->|pass| R --> T
-    G -.->|"fail: stop and alert"| X[Slack or log]
-    T --> F -.->|"stale: alert"| X
-    L & R -.audit.-> O
-    T -. Phase 3 .-> D[dbt marts] -. Phase 4 .-> V[Dashboard]
-```
+![Architecture: sources, Dagster orchestration, Postgres, and planned phases](docs/architecture.svg)
 
 ## The sources
 

@@ -1,0 +1,42 @@
+version: 2
+
+sources:
+  - name: raw
+    description: >
+      Tables written by the Python pipeline (Phases 1 and 2). dbt only ever reads them:
+      the pipeline owns raw, dbt owns everything downstream.
+    schema: raw
+
+    # Freshness is judged on the newest DATA date, not on loaded_at, and the limits are the
+    # same ones the Python pipeline enforces (DECISIONS.md #30). Reason: the loader only moves
+    # loaded_at when a value really changes (DECISIONS.md #4), and fuel prices can stay
+    # unchanged for weeks. Judged on loaded_at, a healthy pipeline would look stale.
+    # A date is read as midnight UTC, which is within a few hours of the Kuala Lumpur calendar
+    # the Python check uses; irrelevant at limits of days.
+    tables:
+      - name: fuel_price_weekly
+        description: "Weekly retail fuel prices in MYR per litre. Grain: (price_date, fuel_type)."
+        loaded_at_field: "price_date::timestamp"
+        freshness:
+          warn_after: {count: 8, period: day}
+          error_after: {count: 10, period: day}
+
+      - name: cpi_state_monthly
+        description: >
+          Consumer price index by state and COICOP division, base 2010 = 100.
+          Grain: (state, month_date, division).
+        loaded_at_field: "month_date::timestamp"
+        freshness:
+          # A month is published around the 19th of the next month, so the newest month_date
+          # is legitimately about 80 days old just before a release.
+          warn_after: {count: 85, period: day}
+          error_after: {count: 90, period: day}
+
+      - name: fx_rate_daily
+        description: >
+          Bank Negara Malaysia exchange rates in MYR, per `unit` units of foreign currency
+          (JPY is quoted per 100). Grain: (rate_date, currency, session_code).
+        loaded_at_field: "rate_date::timestamp"
+        freshness:
+          warn_after: {count: 4, period: day}
+          error_after: {count: 5, period: day}

@@ -6,6 +6,7 @@
     col-pipeline check
     col-pipeline init-db
     col-pipeline probe-bnm
+    col-pipeline load-sample [--end YYYY-MM-DD]     (synthetic data, scratch databases only)
 
 Also runnable as `python -m col_pipeline.cli ...`.
 """
@@ -102,6 +103,16 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("check", help="Check the database connection and schema.")
     sub.add_parser("init-db", help="Create any missing tables (safe to re-run).")
     sub.add_parser("probe-bnm", help="Call the BNM API and show exactly what comes back.")
+    sample_p = sub.add_parser(
+        "load-sample",
+        help="Load SYNTHETIC data into an empty database (for CI and dbt development).",
+    )
+    sample_p.add_argument(
+        "--end",
+        type=iso_date,
+        metavar="YYYY-MM-DD",
+        help="Newest date in the sample (default: today in Kuala Lumpur).",
+    )
     return parser
 
 
@@ -244,6 +255,25 @@ def init_db() -> int:
     return 0
 
 
+def load_sample_data(end: date | None) -> int:
+    """Fill an empty database with synthetic data. Refuses if any raw table has rows."""
+    from col_pipeline.sample_data import SampleDataError, load_sample
+
+    setup_logging(os.getenv("LOG_LEVEL", "INFO"))
+    engine = create_engine(Settings.from_env().db_url, connect_args={"connect_timeout": 5})
+    try:
+        loaded = load_sample(engine, end or kl_today())
+    except SampleDataError as exc:
+        print(f"[FAIL] {exc}")
+        return 1
+    finally:
+        engine.dispose()
+    for name, rows in loaded.items():
+        print(f"[ OK ] {name}: {rows} synthetic rows loaded")
+    print("These rows are labelled source = 'synthetic-sample'. They are not real data.")
+    return 0
+
+
 def last_weekday_before(day: date) -> date:
     prev = day - timedelta(days=1)
     while prev.weekday() >= 5:
@@ -310,6 +340,8 @@ def main(argv: list[str] | None = None) -> int:
         return init_db()
     if args.command == "probe-bnm":
         return probe_bnm()
+    if args.command == "load-sample":
+        return load_sample_data(args.end)
     raise AssertionError(f"unhandled command {args.command!r}")  # argparse prevents this
 
 

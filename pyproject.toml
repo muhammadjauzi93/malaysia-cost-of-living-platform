@@ -24,12 +24,21 @@ dependencies = [
 col-pipeline = "col_pipeline.cli:main"
 
 [dependency-groups]
-# PEP 735 groups: `uv sync` installs these by default; pip >= 25.1 uses `--group dev`.
+# PEP 735 groups. `uv sync` installs the groups named in [tool.uv] default-groups below;
+# pip >= 25.1 uses `--group dev --group dbt`. tasks.py setup --pip reads both from here.
+dbt = [
+    "dbt-core>=1.10.6,<2",
+    "dbt-postgres>=1.9,<2",
+]
 dev = [
     "croniter>=6.2.4",
     "pytest>=8.0",
+    "pyyaml>=6",
     "ruff>=0.5",
 ]
+
+[tool.uv]
+default-groups = ["dev", "dbt"]
 
 [tool.dagster]
 module_name = "col_pipeline.orchestration.definitions"

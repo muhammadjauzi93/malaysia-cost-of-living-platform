@@ -1,0 +1,16 @@
+# Connection settings. Safe to commit: it holds variable NAMES, never values.
+# `python tasks.py dbt ...` fills these from .env (or from DB_URL in CI and cloud), so the
+# password is written once, in .env, exactly as for the pipeline and docker compose.
+cost_of_living:
+  target: "{{ env_var('DBT_TARGET', 'dev') }}"
+  outputs:
+    dev:
+      type: postgres
+      host: "{{ env_var('POSTGRES_HOST', 'localhost') }}"
+      port: "{{ env_var('POSTGRES_PORT', '5433') | as_number }}"
+      user: "{{ env_var('POSTGRES_USER') }}"
+      password: "{{ env_var('POSTGRES_PASSWORD') }}"
+      dbname: "{{ env_var('POSTGRES_DB') }}"
+      # Only used by objects with no schema of their own; every model sets one.
+      schema: analytics
+      threads: 4

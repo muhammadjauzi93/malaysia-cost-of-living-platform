@@ -49,6 +49,38 @@ jobs:
           DB_URL: postgresql+psycopg2://ci:ci@localhost:5432/col_ci
         run: uv run python tasks.py validate
 
+  # The warehouse layer. Rebuilds the whole chain on a throwaway database: raw schema ->
+  # synthetic sample data (through the real loader and quality gate) -> dbt build, which runs
+  # every model AND every test -> source freshness. A failing dbt test fails this job, and a
+  # required status check on it blocks the merge.
+  dbt:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci
+          POSTGRES_DB: col_ci
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U ci -d col_ci"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      # One URL for everything; tasks.py hands dbt the same settings from it.
+      DB_URL: postgresql+psycopg2://ci:ci@localhost:5432/col_ci
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v7
+        with:
+          python-version: "3.12"
+      - run: uv sync --locked
+      - run: uv run python tasks.py init-db
+      - run: uv run python tasks.py load-sample
+      - run: uv run python tasks.py dbt deps
+      - run: uv run python tasks.py dbt build
+      - run: uv run python tasks.py dbt-freshness
+
   # Windows: service containers only run on Linux runners, so integration tests skip here.
   # What this job proves is that installing and invoking the project works on Windows.
   test-windows-uv:
@@ -66,6 +98,12 @@ jobs:
         env:
           DB_URL: postgresql+psycopg2://unused:unused@localhost:5432/unused
         run: uv run python tasks.py validate
+      - name: dbt project parses on Windows (no database needed)
+        env:
+          DB_URL: postgresql+psycopg2://unused:unused@localhost:5432/unused
+        run: |
+          uv run python tasks.py dbt deps
+          uv run python tasks.py dbt parse
 
   # The no-uv path from the README, on both OS families.
   pip-fallback:

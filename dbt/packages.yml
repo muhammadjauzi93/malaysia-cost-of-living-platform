@@ -1,0 +1,5 @@
+packages:
+  # Pinned to an exact tag: the lock file (package-lock.yml) then freezes what is installed.
+  # Installed from git rather than the dbt Hub so the pin is a commit anyone can inspect.
+  - git: "https://github.com/dbt-labs/dbt-utils.git"
+    revision: 1.4.1

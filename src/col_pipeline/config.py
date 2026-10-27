@@ -51,19 +51,30 @@ class Settings:
     db_url: str
     api_base_url: str = "https://api.data.gov.my"
     api_token: str | None = None
+    bnm_base_url: str = "https://api.bnm.gov.my/public"
+    # 1700 is the last interbank snapshot of the day, so day-over-day rates are comparable.
+    # Other BNM sessions: 0900, 1130 (commercial counter rates), 1200.
+    bnm_session: str = "1700"
     request_timeout_s: int = 30
-    lookback_days: int = 21
     landing_dir: str = "data/landing"
+    slack_webhook_url: str | None = None
 
     @classmethod
     def from_env(cls) -> Settings:
         """Build settings from os.environ (after loading .env, if present)."""
         load_dotenv()
+        return cls.from_mapping(os.environ)
+
+    @classmethod
+    def from_mapping(cls, env: Mapping[str, str]) -> Settings:
+        """Build settings from any mapping. Tests and Dagster resources use this directly."""
         return cls(
-            db_url=db_url_from_env(os.environ),
-            api_base_url=os.getenv("DATAGOVMY_BASE_URL", "https://api.data.gov.my"),
-            api_token=os.getenv("DATAGOVMY_API_TOKEN") or None,
-            request_timeout_s=int(os.getenv("REQUEST_TIMEOUT_S", "30")),
-            lookback_days=int(os.getenv("LOOKBACK_DAYS", "21")),
-            landing_dir=os.getenv("LANDING_DIR", "data/landing"),
+            db_url=db_url_from_env(env),
+            api_base_url=env.get("DATAGOVMY_BASE_URL", "https://api.data.gov.my"),
+            api_token=env.get("DATAGOVMY_API_TOKEN") or None,
+            bnm_base_url=env.get("BNM_BASE_URL", "https://api.bnm.gov.my/public"),
+            bnm_session=env.get("BNM_SESSION", "1700"),
+            request_timeout_s=int(env.get("REQUEST_TIMEOUT_S", "30")),
+            landing_dir=env.get("LANDING_DIR", "data/landing"),
+            slack_webhook_url=env.get("SLACK_WEBHOOK_URL") or None,
         )

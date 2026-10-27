@@ -27,7 +27,29 @@ def test_dev_dependencies_come_from_pyproject():
 
 
 def test_task_names_are_dash_case():
-    assert {"setup", "up", "reset-db", "full-refresh", "help"} <= set(tasks.TASKS)
+    expected = {"setup", "up", "reset-db", "full-refresh", "init-db", "probe-bnm", "help"}
+    assert expected <= set(tasks.TASKS)
+
+
+def test_orchestration_tasks_exist():
+    assert {"dagster", "materialize", "monitor", "validate"} <= set(tasks.TASKS)
+
+
+def test_source_list_matches_the_registry():
+    from col_pipeline.sources import SOURCES
+
+    assert tasks.SOURCE_NAMES == tuple(SOURCES)
+
+
+def test_materialize_rejects_an_unknown_source(capsys):
+    assert tasks.main(["materialize", "weather"]) == 2
+    assert "fuel_prices" in capsys.readouterr().out
+
+
+def test_dagster_home_is_inside_the_repo_and_absolute():
+    env = tasks.dagster_env()
+    assert Path(env["DAGSTER_HOME"]).is_absolute()
+    assert Path(env["DAGSTER_HOME"]) == ROOT / "dagster_home"
 
 
 def test_unknown_task_returns_usage_error(capsys):

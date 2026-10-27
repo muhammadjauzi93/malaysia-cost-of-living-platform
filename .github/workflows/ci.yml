@@ -44,6 +44,10 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - run: uv sync --locked
       - run: uv run pytest -v
+      - name: Dagster can load every definition
+        env:
+          DB_URL: postgresql+psycopg2://ci:ci@localhost:5432/col_ci
+        run: uv run python tasks.py validate
 
   # Windows: service containers only run on Linux runners, so integration tests skip here.
   # What this job proves is that installing and invoking the project works on Windows.
@@ -58,6 +62,10 @@ jobs:
       - run: uv run pytest -v
       - run: uv run col-pipeline --help
       - run: uv run python tasks.py help
+      - name: Dagster can load every definition on Windows
+        env:
+          DB_URL: postgresql+psycopg2://unused:unused@localhost:5432/unused
+        run: uv run python tasks.py validate
 
   # The no-uv path from the README, on both OS families.
   pip-fallback:

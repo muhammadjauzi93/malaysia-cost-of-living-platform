@@ -34,7 +34,8 @@ an API filter is a convenience, not a guarantee.
 
 Incremental runs request `date_start = max(price_date) - 21 days`. Re-fetching three
 weeks costs ~3 rows and catches any price the source revises after publishing. The upsert
-makes the overlap harmless. Configurable with `LOOKBACK_DAYS`.
+makes the overlap harmless. Configurable with `LOOKBACK_DAYS`. *(Superseded by #19: each
+source now owns its lookback and `LOOKBACK_DAYS` is gone.)*
 
 ---
 
@@ -85,7 +86,8 @@ Entries 8 to 13 fix that. Pipeline logic did not change.
 
 `[project.scripts]` makes pip/uv generate a `col-pipeline` executable inside the venv on every
 OS (`col-pipeline.exe` on Windows). Nobody types an OS-specific path. Subcommands: `run`,
-`runs`, `check`. `python -m col_pipeline.main` still works.
+`runs`, `check`. `python -m col_pipeline.main` still works. *(Phase 2 removed `main.py`;
+`python -m col_pipeline.cli` is the module form now.)*
 
 `runs` reads `ops.pipeline_runs` through SQLAlchemy instead of shelling out to `psql`, which
 removed a container dependency and a layer of shell quoting. `check` exists because "it
@@ -129,3 +131,125 @@ Linux on 3.11, 3.12 and 3.13 with integration tests; Windows with uv (unit tests
 script, `tasks.py`); and the pip fallback on both OSes. Windows cannot run the integration
 tests because GitHub service containers only work on Linux runners. Windows' risk is
 installation and invocation, which these jobs cover.
+
+---
+
+## Phase 2: more sources, orchestration, data quality
+
+### 14. A source is data, not a script
+
+A `Source` bundles a `TableSpec` (table, key, value and date columns), `QualityRules`, and two
+functions: `fetch` and `to_frame`. One generic loader, runner and Dagster factory serve every
+source. Adding a source is one module; nothing else changes.
+
+**Trade-off.** The loader builds SQL from identifiers in the spec. That is safe only because
+`TableSpec` validates every identifier at import time, and values still travel as parameters.
+
+### 15. Structure raises; plausibility reports
+
+`to_frame` enforces *structure* (required columns, types, unique keys) and raises
+`DataContractError`. `QualityRules` judge *plausibility* (ranges, volume, ordering,
+completeness) and return results with a severity: ERROR blocks the load, WARN is only reported.
+
+Phase 1 checked the fuel price range inside the transform. It moved to the rules, so every
+source works the same way. That is the one Phase 1 test that changed; the load is still blocked.
+
+### 16. FX: the daily run asks for "latest", not for a date
+
+BNM's latest-rates endpoint returns the most recent published day. On a weekend it simply
+returns Friday again, and the upsert makes that a no-op. No calendar logic, no weekend special
+case. This refines #7: FX is never empty, so staleness is caught by freshness (#22) instead.
+
+### 17. FX history is opt-in, and a 404 means "no data"
+
+`--since` calls the per-date endpoint for each weekday and tracked currency. BNM answers 404
+for days it published nothing (holidays), so that 404 is treated as "no rows", not an error.
+Everywhere else a 404 still fails loudly. The per-date path comes from secondary sources and is
+kept off the daily path for that reason; `probe-bnm` shows what the live API returns.
+
+### 18. FX rates stored as BNM quotes them
+
+`raw.fx_rate_daily` keeps `unit` (JPY is quoted per 100) and the BNM session in the key.
+"Ringgit per 1 unit" is a derivation, so it belongs in dbt. Session 1700, the last interbank
+snapshot, makes day-over-day comparisons consistent. Five currencies, chosen for the question:
+USD (oil is priced in it), SGD and CNY (trade partners), EUR and JPY (exercise the unit logic).
+
+### 19. Each source owns its lookback
+
+Fuel re-reads 21 days (weekly data, revisions), CPI 92 days (monthly, occasional revisions), FX
+none (it reads "latest"). One global `LOOKBACK_DAYS` could not fit all three, so it was removed.
+
+### 20. Two retry layers on different time scales
+
+tenacity in the HTTP client retries 429, 5xx and network errors after 15, 30 and 60 seconds.
+Dagster retries a failed landing step after 5 and then 10 minutes, long enough for an outage or
+a rate-limit window to clear. Worst case: 3 Dagster attempts x 4 HTTP attempts = 12 requests over
+about 20 minutes. The load step retries after 30 seconds, for database blips.
+
+Deterministic failures are never retried: a failed gate, bad run configuration, a data contract
+error. Tests prove a failed gate makes exactly one attempt.
+
+### 21. The gate lives inside the landing asset
+
+The quality gate is a *blocking* check emitted by the landing asset itself. When it fails,
+Dagster fails the step and the load asset never runs; the landed file stays for inspection.
+
+**Alternative rejected.** A separate `@asset_check` cannot receive the asset it checks as an
+input in Dagster 1.13, so it would have to re-discover the landed file. Inline keeps one handle.
+The load step validates again anyway, so it is safe even if someone runs it on its own.
+
+### 22. Alert on staleness, not only on failure
+
+A pipeline can succeed every day while its source has stopped publishing. Each raw table has a
+freshness check: blocking, so a breach fails the run and triggers the alert. It runs after every
+load and again in a daily monitor job, which catches a schedule that silently stopped.
+
+### 23. Schedules follow each source's rhythm
+
+* **Fuel: Thursday and Friday 10:00.** The dataset's weekly dates fall on Thursdays in every
+  sample checked; Friday catches a late publication.
+* **CPI: 14:30 on the 19th to 25th.** OpenDOSM lists the 19th, 12:30 as the next release; the
+  window covers releases that move around weekends.
+* **FX: weekdays 19:00.** After BNM's 17:00 snapshot. The exact publish time is an assumption.
+
+Extra runs cost a few API calls and change nothing, because every load is idempotent.
+
+### 24. Batched staging inserts
+
+`execute_values` sends 2,000 rows per statement instead of one round trip per row. Measured on
+a 43,008-row CPI history: 4.0s became 0.9s, and the gap grows with network latency (Docker
+Desktop, a cloud database). **Trade-off:** the loader is now tied to psycopg2; a move to
+psycopg 3 would use `COPY` instead, and only `load.py` changes.
+
+### 25. Abandoned runs are closed automatically
+
+A killed process leaves its run at `running` forever. Each new run of a source first marks that
+source's runs older than six hours as failed, with an explanatory message. Runs of other sources
+and recent runs are never touched, so a genuinely concurrent run is safe.
+
+### 26. Dagster runs on the host, not in Docker (for now)
+
+`python tasks.py dagster` starts `dagster dev` with `DAGSTER_HOME` inside the repository, so
+schedule state and run history survive a restart. Only Postgres runs in Docker. Containerising
+Dagster belongs with the cloud work in a later tier, where it will run on managed infrastructure.
+
+### 27. Alerting must never break anything
+
+Slack is optional (`SLACK_WEBHOOK_URL`). Sending never raises: a Slack outage cannot turn one
+failed run into two. Failures are logged by exception type only, because the exception text can
+contain the webhook URL, which is a secret.
+
+### 28. `init-db` evolves an existing database
+
+Docker applies `schema.sql` only to a new volume. `init-db` applies it to any database, and every
+statement is `IF NOT EXISTS`, so it is safe to repeat. It cannot rename or alter columns; when the
+schema needs that, the project will need a real migration tool.
+
+### 29. A retried load can turn a failed run into a success
+
+Dagster retries the load step with the same landed batch, so with the same `run_id`. The first
+attempt marks the run `failed`; if the retry then loads the data, the run log must say `success`,
+or it contradicts both Dagster and the table. So `succeed` accepts a `running` or `failed` run
+and clears the error message, while `fail` still only closes a `running` one. A `success` is
+never overwritten. **Alternative rejected:** a new run row per load attempt. It would make the
+landing and load phases disagree about which run a batch belongs to.

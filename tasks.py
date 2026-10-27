@@ -61,19 +61,19 @@ def project_python() -> str:
     sys.exit("No .venv found. Run `python tasks.py setup` first.")
 
 
-def sh(*cmd: str) -> int:
+def sh(*cmd: str, env: dict[str, str] | None = None) -> int:
     """Run a command from the repo root. Args are a list, so there is no shell quoting to break."""
     print("$", " ".join(cmd), flush=True)
     try:
-        return subprocess.call(list(cmd), cwd=ROOT)
+        return subprocess.call(list(cmd), cwd=ROOT, env={**os.environ, **(env or {})})
     except FileNotFoundError:
         print(f"Command not found: {cmd[0]}. Is it installed and on your PATH?")
         return 127
 
 
-def py(*args: str) -> int:
+def py(*args: str, env: dict[str, str] | None = None) -> int:
     """Run something with the project's interpreter, e.g. py("-m", "pytest")."""
-    return sh(project_python(), *args)
+    return sh(project_python(), *args, env=env)
 
 
 def dev_dependencies() -> list[str]:
@@ -147,6 +147,24 @@ def psql(args: list[str]) -> int:
 
 
 @task
+def init_db(args: list[str]) -> int:
+    """Create any missing tables in an existing database (safe to repeat)."""
+    return py("-m", "col_pipeline.cli", "init-db")
+
+
+@task
+def sources(args: list[str]) -> int:
+    """List the data sources and the tables they load."""
+    return py("-m", "col_pipeline.cli", "sources")
+
+
+@task
+def probe_bnm(args: list[str]) -> int:
+    """Call the BNM API and save exactly what it returns under data/probe/."""
+    return py("-m", "col_pipeline.cli", "probe-bnm")
+
+
+@task
 def check(args: list[str]) -> int:
     """Diagnose config, database connection and schema."""
     return py("-m", "col_pipeline.cli", "check")
@@ -154,14 +172,66 @@ def check(args: list[str]) -> int:
 
 @task
 def run(args: list[str]) -> int:
-    """Incremental load (watermark minus lookback)."""
+    """Load sources, incrementally. `run fx_rates` for one; `run --since 2026-10-01` to backfill."""
     return py("-m", "col_pipeline.cli", "run", *args)
 
 
 @task
 def full_refresh(args: list[str]) -> int:
-    """Re-pull the whole fuel price history."""
-    return py("-m", "col_pipeline.cli", "run", "--full-refresh")
+    """Re-pull the full history of every source (or name some: `full-refresh cpi_state`)."""
+    return py("-m", "col_pipeline.cli", "run", "--full-refresh", *args)
+
+
+# Mirrors col_pipeline.sources.SOURCES. tasks.py cannot import the project (it runs before
+# `setup` installs it), so a test keeps the two lists in sync.
+SOURCE_NAMES = ("fuel_prices", "cpi_state", "fx_rates")
+DAGSTER_MODULE = "col_pipeline.orchestration.definitions"
+DAGSTER_HOME = ROOT / "dagster_home"
+
+
+def dagster_env() -> dict[str, str]:
+    """Dagster keeps schedule state, run history and logs under DAGSTER_HOME.
+
+    Pinning it inside the repo (and gitignoring its contents) means schedules survive a restart
+    instead of vanishing with a temporary directory. dagster.yaml in that folder is committed.
+    """
+    DAGSTER_HOME.mkdir(exist_ok=True)
+    return {"DAGSTER_HOME": str(DAGSTER_HOME)}
+
+
+@task
+def dagster(args: list[str]) -> int:
+    """Start the Dagster UI and scheduler at http://localhost:3000 (Ctrl+C to stop)."""
+    return py("-m", "dagster", "dev", "-m", DAGSTER_MODULE, *args, env=dagster_env())
+
+
+@task
+def materialize(args: list[str]) -> int:
+    """Run an ingestion job once, headless: `materialize fuel_prices` (all sources if none)."""
+    names = args or list(SOURCE_NAMES)
+    for name in names:
+        if name not in SOURCE_NAMES:
+            print(f"Unknown source {name!r}. Choose from: {', '.join(SOURCE_NAMES)}")
+            return 2
+    for name in names:
+        code = py("-m", "dagster", "job", "execute", "-m", DAGSTER_MODULE,
+                  "-j", f"{name}_job", env=dagster_env())  # fmt: skip
+        if code:
+            return code
+    return 0
+
+
+@task
+def monitor(args: list[str]) -> int:
+    """Run the freshness monitor once: fails if any table has gone stale."""
+    return py("-m", "dagster", "job", "execute", "-m", DAGSTER_MODULE,
+              "-j", "quality_monitor_job", env=dagster_env())  # fmt: skip
+
+
+@task
+def validate(args: list[str]) -> int:
+    """Check that Dagster can load every definition (CI runs this too)."""
+    return py("-m", "dagster", "definitions", "validate", "-m", DAGSTER_MODULE, env=dagster_env())
 
 
 @task

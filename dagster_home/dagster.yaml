@@ -1,0 +1,12 @@
+# Dagster instance settings. DAGSTER_HOME points at this folder (see `tasks.py`).
+# Everything else Dagster writes here (history, schedules, logs) is gitignored.
+
+# Show our own logs (col_pipeline.*) in the Dagster UI, not only in the terminal.
+python_logs:
+  managed_python_loggers:
+    - col_pipeline
+  python_log_level: INFO
+
+# This is a personal portfolio project; do not send usage statistics.
+telemetry:
+  enabled: false

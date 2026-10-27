@@ -333,3 +333,42 @@ One `uv.lock` serves Dagster and dbt. Adding dbt changed no existing pin and add
 runs is a specific commit anyone can inspect. **Trade-off:** a future Dagster and dbt version
 conflict would force dbt into its own environment, which is how many teams run it anyway.
 Installing from git needs `git` on the PATH, which this project already requires.
+
+### 37. Intermediate models are views; marts will be tables
+
+Intermediate models sit between staging and the marts and only exist to feed them, so nothing
+reads them directly. A view costs no storage and is always current. **Trade-off:** each query
+recomputes the joins and windows. The CPI pivot reads 8,064 raw rows and returns 576 (16 states by 36 months), which is milliseconds. When the mart
+tables are built, the cost is paid once per run rather than per query, which is why the marts
+are tables. Revisit if an intermediate model ever scans millions of rows.
+
+### 38. CPI is pivoted to one row per state and month, keeping three divisions
+
+The marts join on state and month, so a long table (one row per division) would need a pivot in
+every join. `int_cpi_state_monthly` pivots once, into `overall_cpi`, `food_cpi` and
+`transport_cpi`. Division 07 is COICOP Transport, the index that should move with pump prices;
+01 is Food, the usual second cost-of-living measure. The other eleven divisions stay in staging
+for later. **Trade-off:** a new division of interest means changing this model, not configuration.
+A singular test asserts that every state and month in staging survives the pivot, so a dropped
+month shows up as a failure, not as a shorter chart.
+
+### 39. FX is converted to ringgit per one unit, from one BNM session, with a test for JPY
+
+BNM quotes JPY per 100, so `middle_rate / quote_unit` puts every currency on the same basis. The
+model filters to one session (`fx_session`, default 1700), because the raw key includes the
+session: a future change to `BNM_SESSION` could otherwise average two snapshots of the same day.
+
+The JPY case is the instructive one. Sabotage test: a source that quotes JPY per 1 instead of per
+100 produces a value of about RM3.00 instead of RM0.03. That passes the generic range test
+(0.01 to 100), so a dedicated singular test asserts that JPY is below RM0.10 per unit. **Lesson:** a
+range test only catches values outside a band; a unit error can land inside it. Each unit trap
+needs its own assertion.
+
+### 40. Fuel changes are measured within each fuel type, and partial months are visible
+
+`LAG` is partitioned by `fuel_type`, so a fuel that appears late (a new subsidy scheme) starts with
+no previous value. Taking the previous row of the table instead would compare RON95 with diesel the
+first time a new fuel appears. Monthly averages carry `weekly_observations`: a full month has four
+or five announcements, so the current month is visibly partial until it closes. **Trade-off:** the
+dashboard must show or exclude partial months explicitly; it cannot assume every month is complete.
+A warning test flags a gap of more than two weeks, which usually means a missed week in the source.

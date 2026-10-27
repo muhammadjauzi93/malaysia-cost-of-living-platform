@@ -8,8 +8,8 @@ which states feel it most?**
 
 > **Status: Phase 3 of 4, in progress.** Three public sources are ingested into Postgres on a
 > schedule by Dagster, behind a blocking data-quality gate, with freshness monitoring and failure
-> alerts (Phase 2). The dbt warehouse has its source declarations and staging layer, with tests
-> (Phase 3, step 1). See the [roadmap](#roadmap).
+> alerts (Phase 2). The dbt warehouse has its sources, staging and intermediate layers, with tests
+> (Phase 3, steps 1 and 2). Marts come next. See the [roadmap](#roadmap).
 
 ## Architecture
 
@@ -128,8 +128,9 @@ Everything lives in Postgres. Which tables exist depends on which commands you h
 | `raw` | `fuel_price_weekly`, `cpi_state_monthly`, `fx_rate_daily` | `up` (empty), then `run` fills them |
 | `ops` | `pipeline_runs` (one row per load attempt) | `up` |
 | `staging` | `stg_fuel_prices`, `stg_cpi_state`, `stg_fx_rates` (views) | `dbt-build` |
+| `intermediate` | `int_fuel_monthly`, `int_fuel_weekly_changes`, `int_cpi_state_monthly`, `int_fx_monthly_myr` (views) | `dbt-build` |
 
-`intermediate` and `marts` are planned for the rest of Phase 3 and do not exist yet.
+`marts` is planned for the rest of Phase 3 and does not exist yet.
 Run `python tasks.py check` any time to see what is missing.
 
 **To get every table that exists today:**
@@ -233,7 +234,8 @@ warehouse (#30 onwards).
 - [x] **Phase 2** CPI and exchange rates. Dagster schedules, retries, blocking quality gate, freshness monitoring, alerts.
 - [ ] **Phase 3** dbt staging, intermediate and marts; snapshots; docs; dbt in CI.
   - [x] Sources with freshness, staging layer, tests, `dbt build` in CI
-  - [ ] Intermediate models, then dimensions, facts and the fuel-vs-CPI mart
+  - [x] Intermediate models: monthly fuel, weekly fuel changes, state CPI pivot, FX in ringgit per unit
+  - [ ] Dimensions, facts and the fuel-vs-CPI mart
   - [ ] Snapshot of revised fuel prices, generated docs and lineage
 - [ ] **Phase 4** Dashboard, metrics, write-up.
 

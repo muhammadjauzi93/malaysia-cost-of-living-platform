@@ -1,0 +1,165 @@
+version: 2
+
+# Intermediate models are the messy middle. Their tests check the joins and calculations
+# themselves, so a mistake shows here rather than in a mart nobody can trace.
+
+models:
+  - name: int_fuel_monthly
+    description: >
+      National fuel price per fuel type per calendar month: the average of that month's weekly
+      announcements, with the month's low and high. Grain: one row per (month_date, fuel_type).
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [month_date, fuel_type]
+      - dbt_utils.expression_is_true:
+          name: int_fuel_monthly_average_within_range
+          arguments:
+            expression: "avg_price_myr between min_price_myr and max_price_myr"
+    columns:
+      - name: month_date
+        description: "First day of the month."
+        data_tests: [not_null]
+      - name: fuel_type
+        description: "Fuel type, as in staging."
+        data_tests: [not_null]
+      - name: avg_price_myr
+        description: "Mean of the month's weekly prices, MYR per litre."
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 0.50
+                max_value: 10.00
+      - name: min_price_myr
+        description: "Lowest weekly price in the month, MYR per litre."
+        data_tests: [not_null]
+      - name: max_price_myr
+        description: "Highest weekly price in the month, MYR per litre."
+        data_tests: [not_null]
+      - name: weekly_observations
+        description: "How many weekly announcements fed the average (4 or 5 in a full month)."
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 1
+                max_value: 5
+
+  - name: int_fuel_weekly_changes
+    description: >
+      Week-on-week change in each fuel price, measured against the previous announcement of the
+      same fuel type. Grain: one row per (price_date, fuel_type), the same as stg_fuel_prices.
+      The first row of each fuel type has no previous price, so its change is null.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [price_date, fuel_type]
+    columns:
+      - name: price_date
+        description: "Date of the announcement."
+        data_tests: [not_null]
+      - name: fuel_type
+        description: "Fuel type."
+        data_tests: [not_null]
+      - name: price_myr
+        description: "Price on price_date, MYR per litre."
+        data_tests: [not_null]
+      - name: previous_price_date
+        description: "Date of the previous announcement of the same fuel type; null for the first."
+      - name: previous_price_myr
+        description: "Price at the previous announcement; null for the first."
+      - name: change_myr
+        description: "price_myr minus previous_price_myr, MYR per litre."
+        data_tests:
+          - dbt_utils.accepted_range:
+              name: int_fuel_weekly_changes_within_one_ringgit
+              arguments:
+                min_value: -1.00
+                max_value: 1.00
+              config:
+                severity: warn
+      - name: days_since_previous
+        description: "Days between announcements. Normally 7; more means a missed week."
+        data_tests:
+          - dbt_utils.accepted_range:
+              name: int_fuel_weekly_gap_at_most_two_weeks
+              arguments:
+                min_value: 1
+                max_value: 14
+              config:
+                severity: warn
+
+  - name: int_cpi_state_monthly
+    description: >
+      One row per state and month with three indices as columns: overall, food (division 01) and
+      transport (division 07). Grain: one row per (state_name, month_date). Other divisions remain
+      in staging for later use.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [state_name, month_date]
+    columns:
+      - name: state_name
+        description: "State or federal territory, as OpenDOSM names it."
+        data_tests: [not_null]
+      - name: month_date
+        description: "First day of the month."
+        data_tests: [not_null]
+      - name: overall_cpi
+        description: "All-items CPI, base 2010 = 100."
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 30
+                max_value: 300
+      - name: food_cpi
+        description: "Food and non-alcoholic beverages (COICOP division 01), base 2010 = 100."
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 30
+                max_value: 300
+      - name: transport_cpi
+        description: "Transport (COICOP division 07), base 2010 = 100. The index fuel prices should move."
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 30
+                max_value: 300
+
+  - name: int_fx_monthly_myr
+    description: >
+      Monthly average mid exchange rate in ringgit per ONE unit of foreign currency, from one BNM
+      session (1700 by default, set by the fx_session variable). Grain: one row per
+      (currency_code, month_date).
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [currency_code, month_date]
+    columns:
+      - name: currency_code
+        description: "ISO 4217 code."
+        data_tests: [not_null]
+      - name: month_date
+        description: "First day of the month."
+        data_tests: [not_null]
+      - name: rate_myr_per_unit
+        description: "Average mid rate in MYR for one unit of the currency (JPY already divided by 100)."
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 0.01
+                max_value: 100
+      - name: trading_days
+        description: "Days with a published rate in the month."
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 1
+                max_value: 23

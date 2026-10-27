@@ -17,7 +17,7 @@ python tasks.py dbt docs generate      # docs site and lineage graph (target/)
 |---|---|---|---|
 | sources | `raw` (read only) | n/a | Declare the raw tables and their freshness limits |
 | `staging/` | `staging` | view | Rename, cast, trim. One model per source table. No joins, no logic |
-| `intermediate/` | `intermediate` | view or table | Joins, windows, unit normalisation. Analysts do not query these |
+| `intermediate/` | `intermediate` | view | Joins, windows, pivots, unit normalisation. Analysts do not query these |
 | `marts/` | `marts` | table, incremental for facts | What analysts and the dashboard read |
 | `snapshots/` | `snapshots` | snapshot | History of values that get revised |
 

@@ -1,0 +1,12 @@
+{
+  "data": [
+    {"currency_code": "USD", "unit": 1, "rate": {"date": "2026-10-23", "buying_rate": 4.0735, "selling_rate": 4.0755, "middle_rate": 4.0745}},
+    {"currency_code": "SGD", "unit": 1, "rate": {"date": "2026-10-23", "buying_rate": 3.1560, "selling_rate": 3.1580, "middle_rate": 3.1570}},
+    {"currency_code": "CNY", "unit": 1, "rate": {"date": "2026-10-23", "buying_rate": 0.5701, "selling_rate": 0.5715, "middle_rate": 0.5708}},
+    {"currency_code": "EUR", "unit": 1, "rate": {"date": "2026-10-23", "buying_rate": 4.7010, "selling_rate": 4.7030, "middle_rate": 4.7020}},
+    {"currency_code": "JPY", "unit": 100, "rate": {"date": "2026-10-23", "buying_rate": 2.6310, "selling_rate": 2.6330, "middle_rate": 2.6320}},
+    {"currency_code": "TWD", "unit": 100, "rate": {"date": "2026-10-23", "buying_rate": 14.4656, "selling_rate": 14.4903, "middle_rate": 14.478}},
+    {"currency_code": "THB", "unit": 100, "rate": {"date": "2026-10-23", "buying_rate": 12.52, "selling_rate": 12.55, "middle_rate": null}}
+  ],
+  "meta": {"quote": "rm", "session": "1700", "total_result": 7}
+}

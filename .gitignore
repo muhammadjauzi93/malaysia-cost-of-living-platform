@@ -13,3 +13,10 @@ data/*
 !data/landing/
 data/landing/*
 !data/landing/.gitkeep
+
+# Dagster writes its run history and schedule state here; only dagster.yaml is committed
+dagster_home/*
+!dagster_home/dagster.yaml
+
+# Responses saved by `probe-bnm`
+data/probe/

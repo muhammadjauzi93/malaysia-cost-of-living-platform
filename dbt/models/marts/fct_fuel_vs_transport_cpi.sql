@@ -8,7 +8,7 @@
 -- from the weeks published so far. cpi_status = 'awaiting_cpi' until OpenDOSM publishes the
 -- month (around the 19th of the next month). Both are as of `built_at`.
 with fuel as (
-    select month_date, avg_price_myr, weekly_observations
+    select month_date, avg_price_myr, days_priced, announcements_in_month
     from {{ ref('int_fuel_monthly') }}
     where fuel_type = '{{ var("headline_fuel_type", "ron95") }}'
 ),
@@ -30,7 +30,8 @@ national_fuel as (
     select
         m.month_date,
         f.avg_price_myr                                               as fuel_avg_price_myr,
-        f.weekly_observations                                         as fuel_weekly_observations,
+        f.days_priced                                                 as fuel_days_priced,
+        f.announcements_in_month                                      as fuel_announcements,
         f.avg_price_myr - lag(f.avg_price_myr) over (order by m.month_date) as fuel_mom_change_myr
     from months m
     left join fuel f on f.month_date = m.month_date
@@ -47,7 +48,8 @@ joined as (
         g.state_name,
         g.region,
         n.fuel_avg_price_myr,
-        n.fuel_weekly_observations,
+        n.fuel_days_priced,
+        n.fuel_announcements,
         n.fuel_mom_change_myr,
         lag(n.fuel_mom_change_myr) over st                          as fuel_mom_change_prev_month_myr,
         c.transport_cpi,
@@ -69,7 +71,8 @@ select
     region,
     '{{ var("headline_fuel_type", "ron95") }}'                 as fuel_type,
     cast(fuel_avg_price_myr as numeric(8, 4))                   as fuel_avg_price_myr,
-    fuel_weekly_observations,
+    fuel_days_priced,
+    fuel_announcements,
     cast(fuel_mom_change_myr as numeric(8, 4))                  as fuel_mom_change_myr,
     cast(fuel_mom_change_prev_month_myr as numeric(8, 4))       as fuel_mom_change_prev_month_myr,
     transport_cpi,

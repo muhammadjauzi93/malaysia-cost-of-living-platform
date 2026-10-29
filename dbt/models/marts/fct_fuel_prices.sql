@@ -23,7 +23,8 @@ select
     previous_price_myr,
     change_myr,
     days_since_previous,
-    coalesce(change_myr <> 0, false)                                    as is_price_change
+    coalesce(change_myr <> 0, false)                                    as is_price_change,
+    event_description
 from {{ ref('int_fuel_weekly_changes') }}
 {% if is_incremental() %}
 where price_date >= (

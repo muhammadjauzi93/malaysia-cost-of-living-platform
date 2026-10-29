@@ -39,3 +39,6 @@ seeds:
     cpi_division_reference:
       +column_types:
         division_code: text   # without this, dbt infers "01" as the integer 1
+    fuel_price_events:
+      +column_types:
+        event_date: date

@@ -155,6 +155,8 @@ models:
       - name: is_price_change
         description: "True when the price differs from the previous announcement."
         data_tests: [not_null]
+      - name: event_description
+        description: "Reviewed event for this announcement (seeds/fuel_price_events.csv), for chart annotations; null otherwise."
 
   - name: fct_cpi_state
     description: >
@@ -291,13 +293,16 @@ models:
         description: "The headline fuel these fuel columns describe."
         data_tests: [not_null]
       - name: fuel_avg_price_myr
-        description: "National monthly average of the headline fuel, MYR per litre. Null if no announcement that month."
-        data_tests:
-          - not_null:
-              config:
-                severity: warn
-      - name: fuel_weekly_observations
-        description: "Announcements behind the average. Low in a partial month."
+        description: >
+          National monthly average of the headline fuel, weighted by the days each price was in
+          effect (DECISIONS.md #46), MYR per litre. Never null: a month without an announcement
+          carries the last price forward. A null here means the headline fuel stopped being published.
+        data_tests: [not_null]
+      - name: fuel_days_priced
+        description: "Days of the month with a price in effect: all of them for a complete month, days so far for the partial one."
+        data_tests: [not_null]
+      - name: fuel_announcements
+        description: "Announcements made during the month. Zero is normal when prices were held."
       - name: fuel_mom_change_myr
         description: "Change in the monthly average on the previous month, MYR per litre."
       - name: fuel_mom_change_prev_month_myr

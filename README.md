@@ -129,12 +129,15 @@ Everything lives in Postgres. Which tables exist depends on which commands you h
 | `ops` | `pipeline_runs` (one row per load attempt) | `up` |
 | `staging` | `stg_fuel_prices`, `stg_cpi_state`, `stg_fx_rates` (views) | `dbt-build` |
 | `intermediate` | `int_fuel_monthly`, `int_fuel_weekly_changes`, `int_cpi_state_monthly`, `int_fx_monthly_myr` (views) | `dbt-build` |
-| `reference` | `state_reference`, `cpi_division_reference`, `currency_reference` (dbt seeds) | `dbt-build` |
+| `reference` | `state_reference`, `cpi_division_reference`, `currency_reference`, `fuel_price_events` (dbt seeds) | `dbt-build` |
 | `marts` | `dim_date`, `dim_state`, `dim_fuel_type`, `dim_division`, `dim_currency`, `fct_fuel_prices` (incremental), `fct_cpi_state`, `fct_fx_rates`, `fct_fuel_vs_transport_cpi` | `dbt-build` |
 
 The dashboard question lives in one table: `marts.fct_fuel_vs_transport_cpi`, one row per state per
-month. The current month is labelled `fuel_month_status = 'partial'`; months whose CPI is not yet
-published are labelled `cpi_status = 'awaiting_cpi'`.
+month. The fuel price is the national average weighted by the days each price was in effect, so
+a month without an announcement still has a price. The current month is labelled
+`fuel_month_status = 'partial'`; months whose CPI is not yet published are labelled
+`cpi_status = 'awaiting_cpi'`. Reviewed events in the fuel series (for example the June 2024 diesel
+change) are listed in `dbt/seeds/fuel_price_events.csv` and annotate `fct_fuel_prices`.
 Run `python tasks.py check` any time to see what is missing.
 
 **To get every table that exists today:**

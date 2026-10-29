@@ -79,6 +79,10 @@ jobs:
       - run: uv run python tasks.py load-sample
       - run: uv run python tasks.py dbt deps
       - run: uv run python tasks.py dbt build
+      # The second build of the incremental fact takes the incremental path (the table now exists)
+      # and re-runs its uniqueness tests: proof on every PR that a re-run never duplicates rows.
+      - name: Incremental re-run stays duplicate-free
+        run: uv run python tasks.py dbt build -s fct_fuel_prices
       - run: uv run python tasks.py dbt-freshness
 
   # Windows: service containers only run on Linux runners, so integration tests skip here.

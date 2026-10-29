@@ -26,3 +26,16 @@ models:
     intermediate:
       +materialized: view
       +schema: intermediate
+    # Marts are what the dashboard reads, so they are tables: computed once per run, not per query.
+    # The weekly fuel fact overrides this to incremental (see models/marts/fct_fuel_prices.sql).
+    marts:
+      +materialized: table
+      +schema: marts
+
+# Small, hand-maintained reference lists. They change only when the real world does.
+seeds:
+  cost_of_living:
+    +schema: reference
+    cpi_division_reference:
+      +column_types:
+        division_code: text   # without this, dbt infers "01" as the integer 1

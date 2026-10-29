@@ -333,3 +333,94 @@ One `uv.lock` serves Dagster and dbt. Adding dbt changed no existing pin and add
 runs is a specific commit anyone can inspect. **Trade-off:** a future Dagster and dbt version
 conflict would force dbt into its own environment, which is how many teams run it anyway.
 Installing from git needs `git` on the PATH, which this project already requires.
+
+### 37. Intermediate models are views; marts will be tables
+
+Intermediate models sit between staging and the marts and only exist to feed them, so nothing
+reads them directly. A view costs no storage and is always current. **Trade-off:** each query
+recomputes the joins and windows. The CPI pivot reads 8,064 raw rows and returns 576 (16 states by 36 months), which is milliseconds. When the mart
+tables are built, the cost is paid once per run rather than per query, which is why the marts
+are tables. Revisit if an intermediate model ever scans millions of rows.
+
+### 38. CPI is pivoted to one row per state and month, keeping three divisions
+
+The marts join on state and month, so a long table (one row per division) would need a pivot in
+every join. `int_cpi_state_monthly` pivots once, into `overall_cpi`, `food_cpi` and
+`transport_cpi`. Division 07 is COICOP Transport, the index that should move with pump prices;
+01 is Food, the usual second cost-of-living measure. The other eleven divisions stay in staging
+for later. **Trade-off:** a new division of interest means changing this model, not configuration.
+A singular test asserts that every state and month in staging survives the pivot, so a dropped
+month shows up as a failure, not as a shorter chart.
+
+### 39. FX is converted to ringgit per one unit, from one BNM session, with a test for JPY
+
+BNM quotes JPY per 100, so `middle_rate / quote_unit` puts every currency on the same basis. The
+model filters to one session (`fx_session`, default 1700), because the raw key includes the
+session: a future change to `BNM_SESSION` could otherwise average two snapshots of the same day.
+
+The JPY case is the instructive one. Sabotage test: a source that quotes JPY per 1 instead of per
+100 produces a value of about RM3.00 instead of RM0.03. That passes the generic range test
+(0.01 to 100), so a dedicated singular test asserts that JPY is below RM0.10 per unit. **Lesson:** a
+range test only catches values outside a band; a unit error can land inside it. Each unit trap
+needs its own assertion.
+
+### 40. Fuel changes are measured within each fuel type, and partial months are visible
+
+`LAG` is partitioned by `fuel_type`, so a fuel that appears late (a new subsidy scheme) starts with
+no previous value. Taking the previous row of the table instead would compare RON95 with diesel the
+first time a new fuel appears. Monthly averages carry `weekly_observations`: a full month has four
+or five announcements, so the current month is visibly partial until it closes. **Trade-off:** the
+dashboard must show or exclude partial months explicitly; it cannot assume every month is complete.
+A warning test flags a gap of more than two weeks, which usually means a missed week in the source.
+
+### 41. The headline fuel is RON95, held in a variable
+
+The project question uses one fuel, and RON95 is the grade most households buy. It is the
+`headline_fuel_type` variable (default `ron95`), not a literal in the SQL, so switching the whole
+mart to another series is one setting. A test asserts that exactly one fuel is flagged and that
+it exists in the data, so a typo fails the build instead of producing an empty fuel column.
+**Open point:** the source also has `ron95_budi95`. Which RON95 series best matches what
+households paid after the subsidy change needs checking; the variable makes either answer cheap.
+
+### 42. Partial months are labelled by the calendar, not by counting weeks
+
+The current Kuala Lumpur month is `fuel_month_status = 'partial'`; every earlier month is
+`complete`. Counting weekly announcements would have been the alternative, but real data already
+shows gaps of more than two weeks (20 rows in the first real run; which fuel types is not yet
+known), and a count would label any such old month partial. Months without published CPI are a separate status, `awaiting_cpi`, because a month
+can be complete for fuel while its CPI is still weeks away. **Trade-off:** both labels are
+correct as of `built_at`, the last build. If dbt does not run after a month ends, last month stays
+labelled partial until the next build.
+
+### 43. Reference lists are seeds; fuel types come from the data
+
+States, CPI division names and currencies change only when the real world does, so they are
+small CSV seeds in version control. `dim_state` takes the seed as the authority, so a CPI state
+spelled differently fails a relationship test instead of quietly becoming a seventeenth state.
+Fuel types are the opposite: new ones arrive with the source (#1), so `dim_fuel_type` is built
+from the data and grows on its own. Division codes are pinned to text in the seed config, because
+dbt would otherwise infer `01` as the integer 1. **Trade-off:** division names follow COICOP 2018
+and should be checked against OpenDOSM's own labels before they appear on a dashboard.
+
+### 44. The weekly fuel fact is incremental, with a 21-day lookback
+
+`fct_fuel_prices` reprocesses only the last 21 days of announcements and replaces those keys
+(dbt-postgres' delete+insert), matching the ingestion lookback (#3). Proof, on the sample: a re-run
+rewrote exactly the 16 rows inside the window and left the other 326 physically untouched (checked
+with Postgres row versions), with no keys gained or lost. CI re-runs the model on every pull request
+so its uniqueness tests run on the incremental path. **Trade-off:** a revision older than 21 days
+does not reach the mart until `--full-refresh`. Shown by test: a price corrected 60 days back stayed
+stale through an incremental run and was fixed by a full refresh. The snapshot (next step) keeps the
+history of such revisions. The other facts are small and rebuilt in full, which keeps their month-on-
+month and year-on-year windows simple.
+
+### 45. The fuel-vs-CPI mart is a complete month-by-state grid
+
+`fct_fuel_vs_transport_cpi` starts from every month crossed with every state, then left-joins fuel
+and CPI. A month with no fuel or no CPI yet is a row with nulls, never a missing row, so every `LAG`
+compares with exactly the previous calendar month. The national fuel price sits on every state's
+row, with last month's change beside this month's transport CPI change, which is the comparison
+the project question asks for. **Found by sabotage:** renaming Pulau Pinang in the source left this
+mart green (the state's rows simply showed `awaiting_cpi` forever); only another model's test failed.
+A test now asserts that in every month either all states have CPI or none do, so the mart catches
+it on its own.

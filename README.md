@@ -8,8 +8,8 @@ which states feel it most?**
 
 > **Status: Phase 3 of 4, in progress.** Three public sources are ingested into Postgres on a
 > schedule by Dagster, behind a blocking data-quality gate, with freshness monitoring and failure
-> alerts (Phase 2). The dbt warehouse has its source declarations and staging layer, with tests
-> (Phase 3, step 1). See the [roadmap](#roadmap).
+> alerts (Phase 2). The dbt warehouse has staging, intermediate and mart layers: 16 models, with
+> tests on each (Phase 3, steps 1 to 3). Snapshot and docs come next. See the [roadmap](#roadmap).
 
 ## Architecture
 
@@ -128,8 +128,13 @@ Everything lives in Postgres. Which tables exist depends on which commands you h
 | `raw` | `fuel_price_weekly`, `cpi_state_monthly`, `fx_rate_daily` | `up` (empty), then `run` fills them |
 | `ops` | `pipeline_runs` (one row per load attempt) | `up` |
 | `staging` | `stg_fuel_prices`, `stg_cpi_state`, `stg_fx_rates` (views) | `dbt-build` |
+| `intermediate` | `int_fuel_monthly`, `int_fuel_weekly_changes`, `int_cpi_state_monthly`, `int_fx_monthly_myr` (views) | `dbt-build` |
+| `reference` | `state_reference`, `cpi_division_reference`, `currency_reference` (dbt seeds) | `dbt-build` |
+| `marts` | `dim_date`, `dim_state`, `dim_fuel_type`, `dim_division`, `dim_currency`, `fct_fuel_prices` (incremental), `fct_cpi_state`, `fct_fx_rates`, `fct_fuel_vs_transport_cpi` | `dbt-build` |
 
-`intermediate` and `marts` are planned for the rest of Phase 3 and do not exist yet.
+The dashboard question lives in one table: `marts.fct_fuel_vs_transport_cpi`, one row per state per
+month. The current month is labelled `fuel_month_status = 'partial'`; months whose CPI is not yet
+published are labelled `cpi_status = 'awaiting_cpi'`.
 Run `python tasks.py check` any time to see what is missing.
 
 **To get every table that exists today:**
@@ -217,8 +222,9 @@ with every test, source freshness); the Windows job also checks that the dbt pro
 * **Schedule times are reasoned, not confirmed.** See DECISIONS.md #23. The same probe showed
   BNM reporting `last_updated` at 23:01, after the 19:00 FX schedule; whether the 1700 rates are
   already available at 19:00 has not been checked.
-* **The dbt layer has only been run on synthetic data** so far (DECISIONS.md #34). The first
-  live run will show whether real state names, divisions and fuel types match the tests.
+* **The marts have only been run on synthetic data** so far (DECISIONS.md #34). Staging and
+  intermediate have run on real data (no errors; two warnings under review). On real data, a CPI
+  state spelled differently from `dbt/seeds/state_reference.csv` fails the build by design.
 * **Dagster runs on the host** with `dagster dev`, not in a container. See #26.
 
 ## Design decisions
@@ -233,7 +239,8 @@ warehouse (#30 onwards).
 - [x] **Phase 2** CPI and exchange rates. Dagster schedules, retries, blocking quality gate, freshness monitoring, alerts.
 - [ ] **Phase 3** dbt staging, intermediate and marts; snapshots; docs; dbt in CI.
   - [x] Sources with freshness, staging layer, tests, `dbt build` in CI
-  - [ ] Intermediate models, then dimensions, facts and the fuel-vs-CPI mart
+  - [x] Intermediate models: monthly fuel, weekly fuel changes, state CPI pivot, FX in ringgit per unit
+  - [x] Dimensions, facts (incremental weekly fuel fact) and the fuel-vs-CPI mart
   - [ ] Snapshot of revised fuel prices, generated docs and lineage
 - [ ] **Phase 4** Dashboard, metrics, write-up.
 

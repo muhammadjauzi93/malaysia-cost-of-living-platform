@@ -17,8 +17,9 @@ python tasks.py dbt docs generate      # docs site and lineage graph (target/)
 |---|---|---|---|
 | sources | `raw` (read only) | n/a | Declare the raw tables and their freshness limits |
 | `staging/` | `staging` | view | Rename, cast, trim. One model per source table. No joins, no logic |
-| `intermediate/` | `intermediate` | view or table | Joins, windows, unit normalisation. Analysts do not query these |
-| `marts/` | `marts` | table, incremental for facts | What analysts and the dashboard read |
+| `intermediate/` | `intermediate` | view | Joins, windows, pivots, unit normalisation. Analysts do not query these |
+| `marts/` | `marts` | table; `fct_fuel_prices` incremental | What analysts and the dashboard read |
+| `seeds/` | `reference` | seed | Hand-maintained lists: states, CPI divisions, currencies |
 | `snapshots/` | `snapshots` | snapshot | History of values that get revised |
 
 A mart never reads a raw table directly, so a source change touches exactly one staging model.

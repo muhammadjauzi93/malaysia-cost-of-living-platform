@@ -1,0 +1,44 @@
+version: 2
+
+seeds:
+  - name: state_reference
+    description: >
+      The sixteen states and federal territories as OpenDOSM names them, with ISO 3166-2:MY codes
+      and region. Grain: one row per state. A CPI state missing from this list fails the
+      relationship tests on the marts, which is how a renamed state is caught.
+    columns:
+      - name: state_name
+        description: "Name exactly as in the CPI source."
+        data_tests: [unique, not_null]
+      - name: state_code
+        description: "ISO 3166-2:MY code, e.g. MY-14 for W.P. Kuala Lumpur."
+        data_tests: [unique, not_null]
+      - name: region
+        description: "Peninsular or East Malaysia (Sabah, Sarawak, Labuan)."
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [Peninsular, East Malaysia]
+
+  - name: cpi_division_reference
+    description: >
+      COICOP 2018 division names for codes 01 to 13, plus 'overall'. Grain: one row per division.
+      Names follow COICOP 2018; check them against OpenDOSM's labels before publishing.
+    columns:
+      - name: division_code
+        description: "Two-digit code as text, or 'overall'."
+        data_tests: [unique, not_null]
+      - name: division_name
+        description: "Division name."
+        data_tests: [not_null]
+
+  - name: currency_reference
+    description: "The five currencies the pipeline tracks. Grain: one row per currency."
+    columns:
+      - name: currency_code
+        description: "ISO 4217 code."
+        data_tests: [unique, not_null]
+      - name: currency_name
+        description: "Common English name."
+        data_tests: [not_null]

@@ -1,0 +1,333 @@
+version: 2
+
+# The marts are the product: the only layer the dashboard and analysts read.
+# Facts join to dimensions through relationship tests, so a value with no dimension row
+# (a renamed state, a new currency) fails the build instead of disappearing from a chart.
+
+models:
+  # ---------------- dimensions ----------------
+  - name: dim_date
+    description: >
+      Calendar of every day from the earliest source date to the end of the current Kuala Lumpur
+      month. Grain: one row per calendar day.
+    columns:
+      - name: date_day
+        description: "The day."
+        data_tests: [unique, not_null]
+      - name: month_date
+        description: "First day of the day's month; the join key for monthly facts."
+        data_tests: [not_null]
+      - name: year_number
+        description: "Calendar year."
+        data_tests: [not_null]
+      - name: quarter_number
+        description: "Calendar quarter, 1 to 4."
+        data_tests: [not_null]
+      - name: month_number
+        description: "Month number, 1 to 12."
+        data_tests: [not_null]
+      - name: month_name
+        description: "Month name in English, e.g. October."
+        data_tests: [not_null]
+      - name: iso_day_of_week
+        description: "1 = Monday to 7 = Sunday."
+        data_tests: [not_null]
+      - name: day_name
+        description: "Day name in English."
+        data_tests: [not_null]
+      - name: is_weekend
+        description: "Saturday or Sunday. Public holidays are not marked."
+        data_tests: [not_null]
+      - name: is_current_month
+        description: "True for days in the current Kuala Lumpur month, as of the last build."
+        data_tests: [not_null]
+
+  - name: dim_state
+    description: >
+      The sixteen states and federal territories, with ISO 3166-2:MY codes and region.
+      Grain: one row per state.
+    columns:
+      - name: state_code
+        description: "ISO 3166-2:MY code, the key the facts use."
+        data_tests: [unique, not_null]
+      - name: state_name
+        description: "Name exactly as OpenDOSM publishes it."
+        data_tests: [unique, not_null]
+      - name: region
+        description: "Peninsular or East Malaysia."
+        data_tests: [not_null]
+
+  - name: dim_fuel_type
+    description: >
+      Every fuel type that has appeared in the source, built from the data, with the headline
+      fuel flagged. Grain: one row per fuel type.
+    columns:
+      - name: fuel_type
+        description: "Fuel type identifier, as in staging."
+        data_tests: [unique, not_null]
+      - name: fuel_family
+        description: "petrol (ron*), diesel (diesel*) or other, from the name."
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [petrol, diesel, other]
+      - name: is_headline
+        description: "True for the fuel the project question uses (var headline_fuel_type)."
+        data_tests: [not_null]
+      - name: first_price_date
+        description: "First announcement of this fuel type in the data."
+        data_tests: [not_null]
+      - name: last_price_date
+        description: "Latest announcement of this fuel type in the data."
+        data_tests: [not_null]
+      - name: weeks_published
+        description: "Number of weekly announcements in the data."
+        data_tests: [not_null]
+
+  - name: dim_division
+    description: "CPI divisions, COICOP 2018 codes 01 to 13 plus 'overall'. Grain: one row per division."
+    columns:
+      - name: division_code
+        description: "Two-digit code as text, or 'overall'."
+        data_tests: [unique, not_null]
+      - name: division_name
+        description: "Division name."
+        data_tests: [not_null]
+      - name: is_all_items
+        description: "True for the all-items ('overall') index."
+        data_tests: [not_null]
+
+  - name: dim_currency
+    description: "The tracked foreign currencies. Grain: one row per currency."
+    columns:
+      - name: currency_code
+        description: "ISO 4217 code."
+        data_tests: [unique, not_null]
+      - name: currency_name
+        description: "Common English name."
+        data_tests: [not_null]
+
+  # ---------------- facts ----------------
+  - name: fct_fuel_prices
+    description: >
+      Weekly retail fuel prices with the change since the previous announcement of the same fuel.
+      Grain: one row per (price_date, fuel_type). Incremental with a 21-day lookback; a re-run
+      replaces the keys in the window rather than appending, so it never duplicates rows.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [price_date, fuel_type]
+    columns:
+      - name: fuel_price_key
+        description: "Surrogate key: hash of price_date and fuel_type."
+        data_tests: [unique, not_null]
+      - name: price_date
+        description: "Date the price took effect."
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_date')
+                field: date_day
+      - name: fuel_type
+        description: "Fuel type."
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_fuel_type')
+                field: fuel_type
+      - name: price_myr
+        description: "Price in MYR per litre."
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 0.50
+                max_value: 10.00
+      - name: previous_price_myr
+        description: "Price at the previous announcement of the same fuel; null for the first."
+      - name: change_myr
+        description: "price_myr minus previous_price_myr."
+      - name: days_since_previous
+        description: "Days since the previous announcement of the same fuel."
+      - name: is_price_change
+        description: "True when the price differs from the previous announcement."
+        data_tests: [not_null]
+
+  - name: fct_cpi_state
+    description: >
+      Consumer price index by state and division, with month-on-month and year-on-year change.
+      Grain: one row per (state_code, month_date, division_code).
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [state_code, month_date, division_code]
+    columns:
+      - name: cpi_key
+        description: "Surrogate key: hash of state_code, month_date and division_code."
+        data_tests: [unique, not_null]
+      - name: state_code
+        description: "ISO 3166-2:MY code. Null here means the source used a state name the seed lacks."
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_state')
+                field: state_code
+      - name: state_name
+        description: "State name as published."
+        data_tests: [not_null]
+      - name: month_date
+        description: "First day of the month."
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_date')
+                field: date_day
+      - name: division_code
+        description: "CPI division."
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_division')
+                field: division_code
+      - name: cpi_index
+        description: "Index, base 2010 = 100."
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 30
+                max_value: 300
+      - name: mom_pct
+        description: "Percent change on the previous month; null if that month is missing."
+      - name: yoy_pct
+        description: "Percent change on the same month a year earlier; null if that month is missing."
+
+  - name: fct_fx_rates
+    description: >
+      Daily BNM exchange rates in ringgit per ONE unit of foreign currency, from one session
+      (default 1700). Grain: one row per (rate_date, currency_code).
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [rate_date, currency_code]
+    columns:
+      - name: fx_rate_key
+        description: "Surrogate key: hash of rate_date and currency_code."
+        data_tests: [unique, not_null]
+      - name: rate_date
+        description: "Publication date."
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_date')
+                field: date_day
+      - name: currency_code
+        description: "ISO 4217 code."
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_currency')
+                field: currency_code
+      - name: quote_unit
+        description: "Units BNM quoted the rate for (100 for JPY), kept for traceability."
+        data_tests: [not_null]
+      - name: buying_myr_per_unit
+        description: "Bank buying rate, MYR per one unit."
+      - name: middle_myr_per_unit
+        description: "Mid rate, MYR per one unit."
+        data_tests:
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 0.001
+                max_value: 100
+      - name: selling_myr_per_unit
+        description: "Bank selling rate, MYR per one unit."
+
+  - name: fct_fuel_vs_transport_cpi
+    description: >
+      The project question: the national headline fuel price (RON95 by default) next to each
+      state's transport CPI, with last month's fuel change aligned to this month's CPI change.
+      Grain: one row per (state_code, month_date). The fuel columns are national, so they are
+      identical for every state in a month (DECISIONS.md #33).
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [state_code, month_date]
+    columns:
+      - name: state_month_key
+        description: "Surrogate key: hash of state_code and month_date."
+        data_tests: [unique, not_null]
+      - name: month_date
+        description: "First day of the month."
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_date')
+                field: date_day
+      - name: state_code
+        description: "ISO 3166-2:MY code."
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_state')
+                field: state_code
+      - name: state_name
+        description: "State name."
+        data_tests: [not_null]
+      - name: region
+        description: "Peninsular or East Malaysia."
+        data_tests: [not_null]
+      - name: fuel_type
+        description: "The headline fuel these fuel columns describe."
+        data_tests: [not_null]
+      - name: fuel_avg_price_myr
+        description: "National monthly average of the headline fuel, MYR per litre. Null if no announcement that month."
+        data_tests:
+          - not_null:
+              config:
+                severity: warn
+      - name: fuel_weekly_observations
+        description: "Announcements behind the average. Low in a partial month."
+      - name: fuel_mom_change_myr
+        description: "Change in the monthly average on the previous month, MYR per litre."
+      - name: fuel_mom_change_prev_month_myr
+        description: >
+          The PREVIOUS month's fuel change. Compare it with this month's transport_cpi_mom_pct to
+          ask whether a pump price change shows up in transport CPI a month later.
+      - name: transport_cpi
+        description: "State transport CPI (division 07). Null until published."
+      - name: transport_cpi_mom_pct
+        description: "Month-on-month percent change in the state's transport CPI."
+      - name: overall_cpi
+        description: "State all-items CPI. Null until published."
+      - name: overall_cpi_mom_pct
+        description: "Month-on-month percent change in the state's all-items CPI."
+      - name: fuel_month_status
+        description: >
+          'partial' for the current Kuala Lumpur month (average of the weeks so far), otherwise
+          'complete'. Show partial months with a label; do not compare them as if complete.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [partial, complete]
+      - name: cpi_status
+        description: "'published' once the month's transport CPI exists, otherwise 'awaiting_cpi'."
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [published, awaiting_cpi]
+      - name: built_at
+        description: "When this table was built. The status columns are correct as of this time."
+        data_tests: [not_null]

@@ -511,3 +511,62 @@ hundreds of models; the interactive docs site (`tasks.py dbt-docs`) remains the 
 comment, so an analyst in DBeaver or psql sees the same documentation as the docs site, including
 the grain and the partial-month rule. Verified on tables, views and columns. **Trade-off:** each
 build issues extra `COMMENT ON` statements, which is negligible here.
+
+---
+
+## Orchestrating the warehouse
+
+### 51. Dagster runs dbt: ingestion and the warehouse are one asset graph
+
+**Context.** dbt ran only when someone typed `dbt-build`. Two consequences: the snapshot missed
+revisions made between runs (#48), and, more importantly, the marts a dashboard reads went stale
+while every freshness check on `raw` stayed green.
+
+**Decision.** `dagster-dbt` turns every dbt model, seed and snapshot into a Dagster asset and every
+dbt test into an asset check. A custom translator maps dbt's sources onto the ingestion assets that
+write them (`raw.fuel_price_weekly` is `fuel_prices_raw`), so the graph is one piece from the API
+call to `marts/fct_fuel_vs_transport_cpi`. Each ingestion job keeps its name and schedule but now
+selects its source plus everything downstream, so the warehouse refreshes in the same run, coupled
+by data rather than by the clock. `dbt_build_job` (`tasks.py materialize warehouse`) builds the
+whole warehouse, needed once on a fresh database where seeds do not exist yet.
+
+**Details that mattered.**
+- dbt uses the pipeline resource's own database URL, set only while the dbt process starts, so
+  dbt and the Python loader cannot point at different databases.
+- The code location is lazy (`@dg.definitions`), so importing the module never needs a dbt
+  manifest; the Dagster tasks in `tasks.py` run `dbt parse` first. Without this, every existing
+  orchestration test failed on machines without dbt.
+- `dagster-dbt` pins Dagster exactly, so the two always move together; it supports dbt-core below
+  1.13 through an extra this project does not install, so that bound is now stated in our own
+  `pyproject.toml`.
+- No retry on the dbt step: a failed dbt test is deterministic (#20).
+
+**Tested** with real Dagster, dbt and Postgres: a revised RON95 price went through gate, load,
+staging, the snapshot (two versions, old one closed) and the mart in one run, and a failing dbt
+test failed the run. With the downstream selection removed, the test fails. A first version of the
+test passed once and then failed on a re-run, because a snapshot is cumulative and the fixture only
+emptied `raw`; each test now starts from an empty warehouse.
+
+**Trade-off.** A dbt failure now marks the ingestion run failed even though the data loaded
+correctly; the raw load is kept, and the dbt assets can be re-run alone from the UI. The dbt step
+adds about 10 seconds to a fuel run (measured on the sample data: 6.5 s inside dbt, the rest dbt
+starting up; real history is larger). The definitions also need a manifest to load.
+
+### 52. Dagster, not Airflow (recorded after the fact)
+
+The roadmap's Tier 2 names Airflow; Phase 2 chose Dagster, and the reason was not written down at
+the time. This entry reconstructs the case from how the project actually uses it.
+
+**For Dagster here.** It installs with pip and runs natively on Windows, where this project is
+developed and where CI validates it; Airflow needs Docker or WSL2 on Windows. Local setup is one
+command (`tasks.py dagster`) instead of a scheduler, webserver and metadata database. Blocking
+asset checks are what implement the quality gate (#21). Its asset model describes data, so "what
+is stale" and "refresh everything downstream" (#51) are built in.
+
+**For Airflow.** It is far more common in job descriptions; managed services (AWS MWAA, Google
+Cloud Composer) are Airflow, and the roadmap's Tier 5 uses them; its ecosystem is larger. The core
+ideas transfer directly: schedules, retries, idempotent tasks, backfills, sensors (README table).
+
+**Plan.** Keep Dagster here. Learn Airflow hands-on in Tier 5 by rebuilding a pipeline on managed
+Airflow, where it is the natural tool. **Lesson:** write the reason down when the choice is made;
+reconstructing it later is weaker evidence than a decision recorded at the time.

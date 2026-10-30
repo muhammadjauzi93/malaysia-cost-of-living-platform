@@ -68,11 +68,30 @@ python tasks.py runs               # what happened
 Then start the orchestrator:
 
 ```bash
+python tasks.py materialize warehouse   # first time only: build the dbt warehouse (seeds, models)
 python tasks.py dagster            # UI and scheduler at http://localhost:3000 (Ctrl+C stops)
 ```
 
 The schedules and the failure sensor are switched on by default. Dagster keeps its state in
 `dagster_home/`, so schedules survive a restart.
+
+**Ingestion and the warehouse are one Dagster graph.** Every dbt model, seed and snapshot is a
+Dagster asset, and every dbt test is an asset check. Each ingestion job lands, gates and loads its
+source, then refreshes everything downstream of it in the same run: `fuel_prices_job` rebuilds
+the fuel models, the dashboard mart and the price snapshot right after new prices arrive. A failing
+dbt test fails the run and triggers the failure alert. (DECISIONS.md #51.)
+
+| In this project (Dagster) | The Airflow equivalent |
+|---|---|
+| Job (`fuel_prices_job`) | DAG |
+| Asset (`fuel_prices_raw`, `marts/fct_fuel_prices`) | Task, plus the dataset it produces |
+| Blocking asset check (the quality gate) | A validation task the load depends on |
+| Schedule (cron, Kuala Lumpur time) | DAG `schedule` |
+| Run failure sensor (`alert_on_failure`) | `on_failure_callback` |
+| Retry policy | Task `retries` and `retry_delay` |
+| `dagster-dbt` (dbt models as assets) | Astronomer Cosmos |
+
+Why Dagster rather than Airflow: DECISIONS.md #52.
 
 ### Upgrading from Phase 1
 
@@ -88,7 +107,8 @@ python tasks.py                       # lists everything
 python tasks.py run fx_rates          # one source
 python tasks.py run --since 2026-10-01   # backfill (idempotent: safe to repeat)
 python tasks.py full-refresh cpi_state   # re-pull a source's full history
-python tasks.py materialize fuel_prices  # run a Dagster job once, without the UI
+python tasks.py materialize fuel_prices  # run a Dagster job once (ingest + dbt downstream)
+python tasks.py materialize warehouse    # build the whole dbt warehouse through Dagster
 python tasks.py monitor               # freshness checks only; fails if anything is stale
 python tasks.py validate              # can Dagster load every definition?
 python tasks.py sources | init-db | check | probe-bnm
@@ -238,19 +258,20 @@ with every test, source freshness); the Windows job also checks that the dbt pro
 * **Schedule times are reasoned, not confirmed.** See DECISIONS.md #23. The same probe showed
   BNM reporting `last_updated` at 23:01, after the 19:00 FX schedule; whether the 1700 rates are
   already available at 19:00 has not been checked.
-* **The snapshot only sees what exists when dbt runs.** If a price is revised twice between two
-  dbt runs, the middle value is never recorded (shown by test, DECISIONS.md #48). dbt is run by
-  hand today, not by Dagster after each ingestion.
-* **Real data:** the full dbt build passed on real data before the snapshot was added (195 of 195,
-  no warnings); the snapshot has run on synthetic data so far. A CPI state spelled differently
-  from `dbt/seeds/state_reference.csv` fails the build by design.
+* **The snapshot only sees what exists when dbt runs.** Dagster now runs it right after every fuel
+  load (#51), so it sees every revision the pipeline loads. A revision the source publishes and
+  corrects again between two pipeline runs is still never seen; that limit is upstream of us.
+  Schedules only fire while `python tasks.py dagster` is running (#26).
+* **Real data:** the full dbt build, snapshot included, passes on real data (205 of 205, no
+  warnings). A CPI state spelled differently from `dbt/seeds/state_reference.csv` fails the build
+  by design.
 * **Dagster runs on the host** with `dagster dev`, not in a container. See #26.
 
 ## Design decisions
 
 Every non-obvious choice is written down with its trade-off in [DECISIONS.md](DECISIONS.md):
 Phase 1 (#1 to #7), the portability revision (#8 to #13), Phase 2 (#14 to #29) and the dbt
-warehouse (#30 onwards).
+warehouse (#30 to #50) and its orchestration (#51 onwards).
 
 ## Roadmap
 

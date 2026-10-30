@@ -17,6 +17,7 @@ dependencies = [
     "tenacity>=8.2",
     "dagster>=1.13.26",
     "dagster-webserver>=1.13.26",
+    "dagster-dbt>=0.29.26",
 ]
 
 [project.scripts]
@@ -27,7 +28,7 @@ col-pipeline = "col_pipeline.cli:main"
 # PEP 735 groups. `uv sync` installs the groups named in [tool.uv] default-groups below;
 # pip >= 25.1 uses `--group dev --group dbt`. tasks.py setup --pip reads both from here.
 dbt = [
-    "dbt-core>=1.10.6,<2",
+    "dbt-core>=1.10.6,<1.13",
     "dbt-postgres>=1.9,<2",
 ]
 dev = [

@@ -88,6 +88,15 @@ jobs:
       - name: Lineage diagram matches the models
         run: uv run python tasks.py lineage --check
       - run: uv run python tasks.py dbt-freshness
+      # Last, because these tests drop and rebuild the warehouse schemas. They run the real
+      # Dagster jobs with real dbt: a revised price must reach the snapshot and the mart in one
+      # ingestion run, and a failing dbt test must fail that run. REQUIRE_DBT_TESTS turns a
+      # missing manifest into a failure instead of a skip, so they can never silently not run.
+      - name: Ingestion and dbt run as one Dagster graph
+        env:
+          TEST_DB_URL: postgresql+psycopg2://ci:ci@localhost:5432/col_ci
+          REQUIRE_DBT_TESTS: "1"
+        run: uv run pytest -v tests/test_dbt_orchestration.py tests/integration/test_orchestration_dbt.py
 
   # Windows: service containers only run on Linux runners, so integration tests skip here.
   # What this job proves is that installing and invoking the project works on Windows.
@@ -102,16 +111,12 @@ jobs:
       - run: uv run pytest -v
       - run: uv run col-pipeline --help
       - run: uv run python tasks.py help
-      - name: Dagster can load every definition on Windows
+      # validate installs dbt packages and parses the dbt project first (tasks.py), so this also
+      # proves the dbt project parses on Windows. No database is needed for either.
+      - name: Dagster can load every definition, dbt included, on Windows
         env:
           DB_URL: postgresql+psycopg2://unused:unused@localhost:5432/unused
         run: uv run python tasks.py validate
-      - name: dbt project parses on Windows (no database needed)
-        env:
-          DB_URL: postgresql+psycopg2://unused:unused@localhost:5432/unused
-        run: |
-          uv run python tasks.py dbt deps
-          uv run python tasks.py dbt parse
 
   # The no-uv path from the README, on both OS families.
   pip-fallback:

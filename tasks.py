@@ -342,6 +342,20 @@ def dbt_freshness(args: list[str]) -> int:
 
 
 @task
+def dbt_docs(args: list[str]) -> int:
+    """Generate the dbt docs site and serve it at http://localhost:8080 (Ctrl+C to stop)."""
+    if not dbt_packages_installed() and (code := run_dbt("deps")):
+        return code
+    return run_dbt("docs", "generate") or run_dbt("docs", "serve", "--port", "8080", *args)
+
+
+@task
+def lineage(args: list[str]) -> int:
+    """Redraw docs/lineage.svg from dbt's manifest (`--check` fails if it is out of date)."""
+    return py("-m", "col_pipeline.lineage", *args)
+
+
+@task
 def load_sample(args: list[str]) -> int:
     """Load SYNTHETIC data into an EMPTY database, for CI and dbt work (refuses otherwise)."""
     return py("-m", "col_pipeline.cli", "load-sample", *args)

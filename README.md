@@ -6,10 +6,11 @@ An end-to-end data platform that tracks Malaysian fuel prices, inflation and the
 built to answer one question: **how do pump prices flow through to the cost of living, and
 which states feel it most?**
 
-> **Status: Phase 3 of 4, in progress.** Three public sources are ingested into Postgres on a
+> **Status: Phase 3 of 4 complete.** Three public sources are ingested into Postgres on a
 > schedule by Dagster, behind a blocking data-quality gate, with freshness monitoring and failure
-> alerts (Phase 2). The dbt warehouse has staging, intermediate and mart layers: 16 models, with
-> tests on each (Phase 3, steps 1 to 3). Snapshot and docs come next. See the [roadmap](#roadmap).
+> alerts (Phase 2). A dbt warehouse turns them into tested staging, intermediate and mart layers
+> (16 models, 4 seeds, a snapshot, 184 tests including 4 unit tests), built in CI on every
+> pull request (Phase 3). The dashboard is next. See the [roadmap](#roadmap).
 
 ## Architecture
 
@@ -94,6 +95,8 @@ python tasks.py sources | init-db | check | probe-bnm
 python tasks.py dbt-build             # dbt: install packages, build every model, run every test
 python tasks.py dbt-freshness         # dbt: are the raw tables fresh enough?
 python tasks.py dbt <any dbt command>   # e.g. dbt test -s stg_fx_rates, dbt docs generate
+python tasks.py dbt-docs              # dbt docs site with the lineage graph, http://localhost:8080
+python tasks.py lineage               # redraw docs/lineage.svg after changing models
 python tasks.py load-sample           # SYNTHETIC data into an EMPTY database (CI, demos)
 python tasks.py test | lint | fmt
 python tasks.py psql | reset-db | down
@@ -119,6 +122,15 @@ python tasks.py reset-db --yes && python tasks.py load-sample && python tasks.py
 
 See [dbt/README.md](dbt/README.md) for the layers and conventions.
 
+### Lineage
+
+![dbt lineage: three raw tables and four seeds flow through staging and intermediate models into five dimensions and four facts, with a snapshot keeping fuel price revisions](docs/lineage.svg)
+
+This diagram is generated from dbt's own manifest (`python tasks.py lineage`), and CI fails a pull
+request whose diagram no longer matches the models, so it cannot go stale. For the interactive
+version with every model and column description, run `python tasks.py dbt-docs`. The same
+descriptions are written into Postgres as comments, so they also appear in any SQL client.
+
 ## Query the data
 
 Everything lives in Postgres. Which tables exist depends on which commands you have run:
@@ -131,6 +143,7 @@ Everything lives in Postgres. Which tables exist depends on which commands you h
 | `intermediate` | `int_fuel_monthly`, `int_fuel_weekly_changes`, `int_cpi_state_monthly`, `int_fx_monthly_myr` (views) | `dbt-build` |
 | `reference` | `state_reference`, `cpi_division_reference`, `currency_reference`, `fuel_price_events` (dbt seeds) | `dbt-build` |
 | `marts` | `dim_date`, `dim_state`, `dim_fuel_type`, `dim_division`, `dim_currency`, `fct_fuel_prices` (incremental), `fct_cpi_state`, `fct_fx_rates`, `fct_fuel_vs_transport_cpi` | `dbt-build` |
+| `snapshots` | `snap_fuel_prices`: every version of every fuel price, including revisions | `dbt-build` |
 
 The dashboard question lives in one table: `marts.fct_fuel_vs_transport_cpi`, one row per state per
 month. The fuel price is the national average weighted by the days each price was in effect, so
@@ -225,9 +238,12 @@ with every test, source freshness); the Windows job also checks that the dbt pro
 * **Schedule times are reasoned, not confirmed.** See DECISIONS.md #23. The same probe showed
   BNM reporting `last_updated` at 23:01, after the 19:00 FX schedule; whether the 1700 rates are
   already available at 19:00 has not been checked.
-* **The marts have only been run on synthetic data** so far (DECISIONS.md #34). Staging and
-  intermediate have run on real data (no errors; two warnings under review). On real data, a CPI
-  state spelled differently from `dbt/seeds/state_reference.csv` fails the build by design.
+* **The snapshot only sees what exists when dbt runs.** If a price is revised twice between two
+  dbt runs, the middle value is never recorded (shown by test, DECISIONS.md #48). dbt is run by
+  hand today, not by Dagster after each ingestion.
+* **Real data:** the full dbt build passed on real data before the snapshot was added (195 of 195,
+  no warnings); the snapshot has run on synthetic data so far. A CPI state spelled differently
+  from `dbt/seeds/state_reference.csv` fails the build by design.
 * **Dagster runs on the host** with `dagster dev`, not in a container. See #26.
 
 ## Design decisions
@@ -240,11 +256,14 @@ warehouse (#30 onwards).
 
 - [x] **Phase 1** Fuel prices to Postgres. Idempotent, incremental, logged, tested; runs on Linux and Windows, Python 3.11 to 3.13.
 - [x] **Phase 2** CPI and exchange rates. Dagster schedules, retries, blocking quality gate, freshness monitoring, alerts.
-- [ ] **Phase 3** dbt staging, intermediate and marts; snapshots; docs; dbt in CI.
-  - [x] Sources with freshness, staging layer, tests, `dbt build` in CI
-  - [x] Intermediate models: monthly fuel, weekly fuel changes, state CPI pivot, FX in ringgit per unit
-  - [x] Dimensions, facts (incremental weekly fuel fact) and the fuel-vs-CPI mart
-  - [ ] Snapshot of revised fuel prices, generated docs and lineage
+- [x] **Phase 3** dbt staging, intermediate and marts; snapshots; docs; dbt in CI. Against the
+  roadmap's Tier 3 criteria:
+  - [x] 15 or more models across three layers: 16 (3 staging, 4 intermediate, 9 marts)
+  - [x] Every column described and every model tested (enforced by `tests/test_dbt_project.py`)
+  - [x] Incremental fact that never duplicates on re-run (`fct_fuel_prices`, re-run in CI)
+  - [x] A snapshot keeping history of a changing source (`snap_fuel_prices`)
+  - [x] `dbt build` in GitHub Actions on every pull request
+  - [x] The grain of every fact stated in one sentence (in each model's description)
 - [ ] **Phase 4** Dashboard, metrics, write-up.
 
 ## Data sources

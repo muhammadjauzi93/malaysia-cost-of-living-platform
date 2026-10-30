@@ -16,6 +16,11 @@ clean-targets: ["target", "dbt_packages"]
 
 models:
   cost_of_living:
+    # Write model and column descriptions into Postgres as comments, so they show up in any SQL
+    # client (DBeaver, pgAdmin, psql \d+), not only on the dbt docs site. DECISIONS.md #50.
+    +persist_docs:
+      relation: true
+      columns: true
     # One folder per layer, one schema per layer (see macros/generate_schema_name.sql).
     # Staging models only rename, cast and trim, so views are enough: no storage, always fresh.
     staging:

@@ -319,7 +319,7 @@ models:
         description: "Month-on-month percent change in the state's all-items CPI."
       - name: fuel_month_status
         description: >
-          'partial' for the current Kuala Lumpur month (average of the weeks so far), otherwise
+          'partial' for the current Kuala Lumpur month (average of the days so far), otherwise
           'complete'. Show partial months with a label; do not compare them as if complete.
         data_tests:
           - not_null

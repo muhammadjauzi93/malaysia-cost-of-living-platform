@@ -1,0 +1,93 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1580 638" width="1580" height="638" font-family="Segoe UI, Helvetica, Arial, sans-serif">
+  <defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#94a3b8"/></marker></defs>
+  <rect width="1580" height="638" rx="20" fill="#ffffff"/>
+  <text x="790" y="48" text-anchor="middle" font-size="24" font-weight="700" fill="#0f172a">dbt lineage: raw data to dashboard tables</text>
+  <text x="790" y="76" text-anchor="middle" font-size="14" fill="#64748b">3 sources · 4 seeds · 16 models · 1 snapshot · generated from dbt/target/manifest.json</text>
+  <rect x="30" y="120" width="256" height="448" rx="16" fill="#eff6ff" stroke="#3b82f6" stroke-width="2"/>
+  <text x="158" y="146" text-anchor="middle" font-size="13" font-weight="700" fill="#334155">RAW SOURCES</text>
+  <rect x="346" y="120" width="256" height="448" rx="16" fill="#ecfdf5" stroke="#10b981" stroke-width="2"/>
+  <text x="474" y="146" text-anchor="middle" font-size="13" font-weight="700" fill="#334155">STAGING AND SEEDS</text>
+  <rect x="662" y="120" width="256" height="448" rx="16" fill="#f0fdfa" stroke="#14b8a6" stroke-width="2"/>
+  <text x="790" y="146" text-anchor="middle" font-size="13" font-weight="700" fill="#334155">INTERMEDIATE</text>
+  <rect x="978" y="120" width="256" height="448" rx="16" fill="#f5f3ff" stroke="#8b5cf6" stroke-width="2"/>
+  <text x="1106" y="146" text-anchor="middle" font-size="13" font-weight="700" fill="#334155">DIMENSIONS</text>
+  <rect x="1294" y="120" width="256" height="448" rx="16" fill="#fffbeb" stroke="#f59e0b" stroke-width="2"/>
+  <text x="1422" y="146" text-anchor="middle" font-size="13" font-weight="700" fill="#334155">FACTS</text>
+  <g fill="none" stroke="#94a3b8" stroke-width="1.4" marker-end="url(#arrow)">
+    <path d="M268,232 C316,232 316,232 364,232"/>
+    <path d="M268,182 C316,182 316,182 364,182"/>
+    <path d="M268,232 C316,232 316,282 364,282"/>
+    <path d="M268,282 C316,282 316,332 364,332"/>
+    <path d="M584,182 C632,182 632,182 680,182"/>
+    <path d="M584,282 C632,282 632,232 680,232"/>
+    <path d="M584,282 C632,282 632,332 680,332"/>
+    <path d="M584,482 C632,482 632,332 680,332"/>
+    <path d="M584,332 C632,332 632,282 680,282"/>
+    <path d="M584,432 C790,432 790,332 996,332"/>
+    <path d="M584,182 C790,182 790,182 996,182"/>
+    <path d="M584,282 C790,282 790,182 996,182"/>
+    <path d="M584,332 C790,332 790,182 996,182"/>
+    <path d="M584,382 C790,382 790,282 996,282"/>
+    <path d="M584,282 C790,282 790,232 996,232"/>
+    <path d="M584,532 C790,532 790,382 996,382"/>
+    <path d="M1216,382 C1264,382 1264,232 1312,232"/>
+    <path d="M584,182 C948,182 948,232 1312,232"/>
+    <path d="M900,332 C1106,332 1106,282 1312,282"/>
+    <path d="M1216,382 C1264,382 1264,182 1312,182"/>
+    <path d="M900,182 C1106,182 1106,182 1312,182"/>
+    <path d="M900,232 C1106,232 1106,182 1312,182"/>
+    <path d="M584,332 C948,332 948,332 1312,332"/>
+  </g>
+  <rect x="48" y="164" width="220" height="36" rx="10" fill="#3b82f6"/>
+  <text x="158" y="187" text-anchor="middle" font-size="13" font-weight="600" fill="#ffffff">raw.cpi_state_monthly</text>
+  <rect x="48" y="214" width="220" height="36" rx="10" fill="#3b82f6"/>
+  <text x="158" y="237" text-anchor="middle" font-size="13" font-weight="600" fill="#ffffff">raw.fuel_price_weekly</text>
+  <rect x="48" y="264" width="220" height="36" rx="10" fill="#3b82f6"/>
+  <text x="158" y="287" text-anchor="middle" font-size="13" font-weight="600" fill="#ffffff">raw.fx_rate_daily</text>
+  <rect x="364" y="164" width="220" height="36" rx="10" fill="#10b981"/>
+  <text x="474" y="187" text-anchor="middle" font-size="13" font-weight="600" fill="#ffffff">stg_cpi_state</text>
+  <rect x="364" y="214" width="220" height="36" rx="10" fill="#dc2626"/>
+  <text x="474" y="237" text-anchor="middle" font-size="13" font-weight="600" fill="#ffffff">snap_fuel_prices</text>
+  <rect x="364" y="264" width="220" height="36" rx="10" fill="#10b981"/>
+  <text x="474" y="287" text-anchor="middle" font-size="13" font-weight="600" fill="#ffffff">stg_fuel_prices</text>
+  <rect x="364" y="314" width="220" height="36" rx="10" fill="#10b981"/>
+  <text x="474" y="337" text-anchor="middle" font-size="13" font-weight="600" fill="#ffffff">stg_fx_rates</text>
+  <rect x="364" y="364" width="220" height="36" rx="10" fill="#64748b"/>
+  <text x="474" y="387" text-anchor="middle" font-size="13" font-weight="600" fill="#ffffff">cpi_division_reference</text>
+  <rect x="364" y="414" width="220" height="36" rx="10" fill="#64748b"/>
+  <text x="474" y="437" text-anchor="middle" font-size="13" font-weight="600" fill="#ffffff">currency_reference</text>
+  <rect x="364" y="464" width="220" height="36" rx="10" fill="#64748b"/>
+  <text x="474" y="487" text-anchor="middle" font-size="13" font-weight="600" fill="#ffffff">fuel_price_events</text>
+  <rect x="364" y="514" width="220" height="36" rx="10" fill="#64748b"/>
+  <text x="474" y="537" text-anchor="middle" font-size="13" font-weight="600" fill="#ffffff">state_reference</text>
+  <rect x="680" y="164" width="220" height="36" rx="10" fill="#0d9488"/>
+  <text x="790" y="187" text-anchor="middle" font-size="13" font-weight="600" fill="#ffffff">int_cpi_state_monthly</text>
+  <rect x="680" y="214" width="220" height="36" rx="10" fill="#0d9488"/>
+  <text x="790" y="237" text-anchor="middle" font-size="13" font-weight="600" fill="#ffffff">int_fuel_monthly</text>
+  <rect x="680" y="264" width="220" height="36" rx="10" fill="#0d9488"/>
+  <text x="790" y="287" text-anchor="middle" font-size="13" font-weight="600" fill="#ffffff">int_fx_monthly_myr</text>
+  <rect x="680" y="314" width="220" height="36" rx="10" fill="#0d9488"/>
+  <text x="790" y="337" text-anchor="middle" font-size="13" font-weight="600" fill="#ffffff">int_fuel_weekly_changes</text>
+  <rect x="996" y="164" width="220" height="36" rx="10" fill="#7c3aed"/>
+  <text x="1106" y="187" text-anchor="middle" font-size="13" font-weight="600" fill="#ffffff">dim_date</text>
+  <rect x="996" y="214" width="220" height="36" rx="10" fill="#7c3aed"/>
+  <text x="1106" y="237" text-anchor="middle" font-size="13" font-weight="600" fill="#ffffff">dim_fuel_type</text>
+  <rect x="996" y="264" width="220" height="36" rx="10" fill="#7c3aed"/>
+  <text x="1106" y="287" text-anchor="middle" font-size="13" font-weight="600" fill="#ffffff">dim_division</text>
+  <rect x="996" y="314" width="220" height="36" rx="10" fill="#7c3aed"/>
+  <text x="1106" y="337" text-anchor="middle" font-size="13" font-weight="600" fill="#ffffff">dim_currency</text>
+  <rect x="996" y="364" width="220" height="36" rx="10" fill="#7c3aed"/>
+  <text x="1106" y="387" text-anchor="middle" font-size="13" font-weight="600" fill="#ffffff">dim_state</text>
+  <rect x="1312" y="164" width="220" height="36" rx="10" fill="#f59e0b"/>
+  <text x="1422" y="187" text-anchor="middle" font-size="13" font-weight="600" fill="#ffffff">fct_fuel_vs_transport_cpi</text>
+  <rect x="1312" y="214" width="220" height="36" rx="10" fill="#f59e0b"/>
+  <text x="1422" y="237" text-anchor="middle" font-size="13" font-weight="600" fill="#ffffff">fct_cpi_state</text>
+  <rect x="1312" y="264" width="220" height="36" rx="10" fill="#f59e0b"/>
+  <text x="1422" y="287" text-anchor="middle" font-size="13" font-weight="600" fill="#ffffff">fct_fuel_prices</text>
+  <rect x="1312" y="314" width="220" height="36" rx="10" fill="#f59e0b"/>
+  <text x="1422" y="337" text-anchor="middle" font-size="13" font-weight="600" fill="#ffffff">fct_fx_rates</text>
+  <rect x="40" y="595" width="16" height="16" rx="4" fill="#dc2626"/>
+  <text x="64" y="608" font-size="13" fill="#334155">snapshot: keeps every revision of a price (SCD Type 2)</text>
+  <rect x="560" y="595" width="16" height="16" rx="4" fill="#64748b"/>
+  <text x="584" y="608" font-size="13" fill="#334155">seed: small hand-maintained reference list (CSV in version control)</text>
+</svg>

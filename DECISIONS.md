@@ -473,3 +473,41 @@ must review new warnings. That is the point: the review is now recorded in versi
 **Upgrade note.** `fct_fuel_prices` gained a column. An incremental model adds the column but only
 fills it for rows inside the lookback window, so existing databases need one
 `python tasks.py dbt-build --full-refresh` to fill it for older rows.
+
+### 48. The fuel price snapshot uses the timestamp strategy on loaded_at
+
+`snap_fuel_prices` keeps every version of every price (SCD Type 2), because the raw upsert
+overwrites a revised price. It reads the raw table directly, so history is kept before any
+cleaning. **Strategy:** timestamp on `loaded_at`, not a column-by-column check. It is correct here
+only because the loader moves `loaded_at` exactly when a price changes (#4). Verified with the real
+loader: re-loading an unchanged price created no version; a revised price closed the old version
+at the instant the new one opened, with no gap and no overlap. Two tests hold those invariants for
+every key: exactly one current version, and versions that meet end to end.
+
+**Clock fix.** dbt-postgres stamps snapshots with `timestamp without time zone` while `loaded_at`
+is `timestamptz`; dbt warned on every run, and the session time zone would silently decide how
+the two compared. A one-macro override keeps the snapshot clock time-zone aware, like every other
+timestamp in the project.
+
+**Trade-off, shown by test:** a snapshot only sees what exists when it runs. A price revised twice
+between runs (RM2.15 to 2.25 to 2.35) recorded 2.15 and 2.35; the 2.25 was never seen. dbt is run by
+hand today. The fix is to run `dbt snapshot` right after each fuel ingestion, from Dagster.
+
+### 49. The lineage diagram is generated from the manifest and checked in CI
+
+A screenshot of `dbt docs serve` goes stale the first time a model changes. `col_pipeline.lineage`
+reads `dbt/target/manifest.json` and writes `docs/lineage.svg`: one column per layer, nodes ordered
+to keep lines short, an arrowhead only where a line really ends. Output is deterministic (verified
+byte-identical on regeneration), so CI runs `tasks.py lineage --check` and fails a pull request
+whose diagram does not match its models. Standard library only. **Found while building it:** with
+seeds in their own column between raw and staging, every raw-to-staging line passed behind a seed
+and looked like it flowed through it; seeds moved to the bottom of the staging column.
+**Trade-off:** a hand-rolled layout is simpler than the dbt docs graph and does not scale to
+hundreds of models; the interactive docs site (`tasks.py dbt-docs`) remains the full view.
+
+### 50. Descriptions are persisted to Postgres as comments
+
+`persist_docs` writes every model and column description into the database as a table or column
+comment, so an analyst in DBeaver or psql sees the same documentation as the docs site, including
+the grain and the partial-month rule. Verified on tables, views and columns. **Trade-off:** each
+build issues extra `COMMENT ON` statements, which is negligible here.

@@ -368,7 +368,7 @@ needs its own assertion.
 
 `LAG` is partitioned by `fuel_type`, so a fuel that appears late (a new subsidy scheme) starts with
 no previous value. Taking the previous row of the table instead would compare RON95 with diesel the
-first time a new fuel appears. Monthly averages carry `weekly_observations`: a full month has four
+first time a new fuel appears. (Monthly averages were later reworked, see #46.) Monthly averages carry `weekly_observations`: a full month has four
 or five announcements, so the current month is visibly partial until it closes. **Trade-off:** the
 dashboard must show or exclude partial months explicitly; it cannot assume every month is complete.
 A warning test flags a gap of more than two weeks, which usually means a missed week in the source.
@@ -386,8 +386,8 @@ households paid after the subsidy change needs checking; the variable makes eith
 
 The current Kuala Lumpur month is `fuel_month_status = 'partial'`; every earlier month is
 `complete`. Counting weekly announcements would have been the alternative, but real data already
-shows gaps of more than two weeks (20 rows in the first real run; which fuel types is not yet
-known), and a count would label any such old month partial. Months without published CPI are a separate status, `awaiting_cpi`, because a month
+shows gaps of more than two weeks (20 rows in the first real run: the 2018 schedule change, see #46
+and #47), and a count would label any such old month partial. Months without published CPI are a separate status, `awaiting_cpi`, because a month
 can be complete for fuel while its CPI is still weeks away. **Trade-off:** both labels are
 correct as of `built_at`, the last build. If dbt does not run after a month ends, last month stays
 labelled partial until the next build.
@@ -424,3 +424,52 @@ the project question asks for. **Found by sabotage:** renaming Pulau Pinang in t
 mart green (the state's rows simply showed `awaiting_cpi` forever); only another model's test failed.
 A test now asserts that in every month either all states have CPI or none do, so the mart catches
 it on its own.
+
+### 46. Monthly fuel prices are weighted by the days each price was in effect
+
+**Found on real data.** The first live run left September 2018 with no RON95 price: it was
+announced on 30 August and next on 1 October, and `int_fuel_monthly` averaged the announcements
+made *within* a month. Yet motorists paid RM2.20 every day of September. The same flaw distorted
+every irregular month. June 2024 diesel was RM2.15 for 9 days and RM3.35 for 21; averaging the
+five announcements gave RM3.11, weighting by days gives RM2.99.
+
+**Decision.** An announcement sets a price that holds until the same fuel's next announcement.
+The model expands each price to the days it applied and averages by day. A fuel's latest price
+runs to today (Kuala Lumpur) if the fuel is still published; if its last announcement is more
+than 14 days older than the newest one, it was discontinued and stops at the next announcement
+of any fuel, so a retired scheme does not run on forever. No future day is ever priced. The
+monthly columns are now `days_priced` and `announcements_in_month`, replacing
+`weekly_observations`; the mart's `fuel_avg_price_myr` is never null and its test is an error.
+
+**How it is tested.** dbt unit tests feed fixed rows in and compare exact rows out, with "today"
+pinned: September 2018 (RM2.20 on 30 days, zero announcements), June 2024 diesel (exactly RM2.99),
+a discontinued fuel stopping, and the current month stopping at today. The synthetic sample is
+perfectly regular and could never have exposed this. Verified that the tests can fail: expecting
+RM3.11 fails with "actual differs from expected".
+
+**Trade-off.** A price carried forward is an assumption: if the source silently skips a week, the
+model keeps the old price rather than showing a gap. Source freshness (10 days) and the gap
+warning cover that. The view expands every price to daily rows (tens of thousands for the full history), which
+is trivial here; at a much larger scale it would be materialised as a table.
+
+### 47. Reviewed fuel events are a seed; warnings fire only for something new
+
+**Found on real data.** Two warnings fired on every build: diesel's RM1.20 jump on 10 June 2024,
+and 20 long gaps in 2018-19 when announcements moved from weekly to monthly. Both are real events,
+not errors. A warning that fires every run teaches people to ignore warnings, including the one
+that matters.
+
+**Decision.** `seeds/fuel_price_events.csv` lists reviewed events: date, fuel type (or `all`),
+kind, and a one-line description of what the data shows. `int_fuel_weekly_changes` attaches the
+description, the two warning tests skip rows that have one, and `fct_fuel_prices` carries it so
+the dashboard can annotate the chart. The join aggregates, so a date matching two events still
+gives one row (a unit test proves it). Tested on the sample: a reviewed diesel jump stayed silent
+while an invented RON97 jump on the same day still warned.
+
+**Rule.** Add a row only after looking at the data and understanding it, never to silence a
+warning. Descriptions state what the data shows, not background claims. **Trade-off:** someone
+must review new warnings. That is the point: the review is now recorded in version control.
+
+**Upgrade note.** `fct_fuel_prices` gained a column. An incremental model adds the column but only
+fills it for rows inside the lookback window, so existing databases need one
+`python tasks.py dbt-build --full-refresh` to fill it for older rows.

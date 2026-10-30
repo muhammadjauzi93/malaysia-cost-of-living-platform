@@ -6,8 +6,10 @@ version: 2
 models:
   - name: int_fuel_monthly
     description: >
-      National fuel price per fuel type per calendar month: the average of that month's weekly
-      announcements, with the month's low and high. Grain: one row per (month_date, fuel_type).
+      National fuel price per fuel type per calendar month, weighted by the days each price was
+      in effect (DECISIONS.md #46), with the month's low and high. A month with no announcement
+      still has a price: the one carried forward from the last announcement.
+      Grain: one row per (month_date, fuel_type).
     data_tests:
       - dbt_utils.unique_combination_of_columns:
           arguments:
@@ -24,7 +26,7 @@ models:
         description: "Fuel type, as in staging."
         data_tests: [not_null]
       - name: avg_price_myr
-        description: "Mean of the month's weekly prices, MYR per litre."
+        description: "Day-weighted mean of the prices in effect during the month, MYR per litre."
         data_tests:
           - not_null
           - dbt_utils.accepted_range:
@@ -32,19 +34,29 @@ models:
                 min_value: 0.50
                 max_value: 10.00
       - name: min_price_myr
-        description: "Lowest weekly price in the month, MYR per litre."
+        description: "Lowest price in effect on any day of the month, MYR per litre."
         data_tests: [not_null]
       - name: max_price_myr
-        description: "Highest weekly price in the month, MYR per litre."
+        description: "Highest price in effect on any day of the month, MYR per litre."
         data_tests: [not_null]
-      - name: weekly_observations
-        description: "How many weekly announcements fed the average (4 or 5 in a full month)."
+      - name: days_priced
+        description: >
+          Days of the month with a price in effect. A full month has all its days; the current
+          month has the days up to today; a fuel's first or last month can have fewer.
         data_tests:
           - not_null
           - dbt_utils.accepted_range:
               arguments:
                 min_value: 1
-                max_value: 5
+                max_value: 31
+      - name: announcements_in_month
+        description: "Announcements made in the month. Zero is normal when a price was held (September 2018)."
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 0
+                max_value: 31
 
   - name: int_fuel_weekly_changes
     description: >
@@ -79,6 +91,9 @@ models:
                 max_value: 1.00
               config:
                 severity: warn
+                where: "event_description is null"   # reviewed events: seeds/fuel_price_events.csv
+      - name: event_description
+        description: "The reviewed event for this announcement, from seeds/fuel_price_events.csv; null for ordinary weeks."
       - name: days_since_previous
         description: "Days between announcements. Normally 7; more means a missed week."
         data_tests:
@@ -89,6 +104,7 @@ models:
                 max_value: 14
               config:
                 severity: warn
+                where: "event_description is null"   # reviewed events: seeds/fuel_price_events.csv
 
   - name: int_cpi_state_monthly
     description: >
@@ -163,3 +179,88 @@ models:
               arguments:
                 min_value: 1
                 max_value: 23
+
+# Unit tests: fixed input rows in, exact rows out, no database data needed. The cases are the real
+# ones the first live run exposed (DECISIONS.md #46). "Today" is pinned so results never drift.
+unit_tests:
+  - name: int_fuel_monthly_month_without_announcement_carries_the_price
+    description: >
+      September 2018 had no announcement: RON95 was announced on 30 August and next on 1 October.
+      Averaging announcements gave September no price. It must be RM2.20 on all 30 days.
+    model: int_fuel_monthly
+    overrides:
+      macros:
+        kl_today: "cast('2018-10-31' as date)"
+    given:
+      - input: ref('stg_fuel_prices')
+        rows:
+          - {price_date: 2018-08-30, fuel_type: ron95, price_myr: 2.20}
+          - {price_date: 2018-10-01, fuel_type: ron95, price_myr: 2.20}
+    expect:
+      rows:
+        - {month_date: 2018-08-01, fuel_type: ron95, avg_price_myr: 2.2000, days_priced: 2, announcements_in_month: 1}
+        - {month_date: 2018-09-01, fuel_type: ron95, avg_price_myr: 2.2000, days_priced: 30, announcements_in_month: 0}
+        - {month_date: 2018-10-01, fuel_type: ron95, avg_price_myr: 2.2000, days_priced: 31, announcements_in_month: 1}
+
+  - name: int_fuel_monthly_weights_by_days_in_effect
+    description: >
+      June 2024 diesel: RM2.15 from 1 to 9 June, RM3.35 from 10 June. By days the month is
+      (9 x 2.15 + 21 x 3.35) / 30 = 2.99. Averaging the five announcements would give 3.11.
+    model: int_fuel_monthly
+    overrides:
+      macros:
+        kl_today: "cast('2024-06-30' as date)"
+    given:
+      - input: ref('stg_fuel_prices')
+        rows:
+          - {price_date: 2024-05-30, fuel_type: diesel, price_myr: 2.15}
+          - {price_date: 2024-06-06, fuel_type: diesel, price_myr: 2.15}
+          - {price_date: 2024-06-10, fuel_type: diesel, price_myr: 3.35}
+          - {price_date: 2024-06-13, fuel_type: diesel, price_myr: 3.35}
+          - {price_date: 2024-06-20, fuel_type: diesel, price_myr: 3.35}
+          - {price_date: 2024-06-27, fuel_type: diesel, price_myr: 3.35}
+    expect:
+      rows:
+        - {month_date: 2024-05-01, fuel_type: diesel, avg_price_myr: 2.1500, min_price_myr: 2.15, max_price_myr: 2.15, days_priced: 2, announcements_in_month: 1}
+        - {month_date: 2024-06-01, fuel_type: diesel, avg_price_myr: 2.9900, min_price_myr: 2.15, max_price_myr: 3.35, days_priced: 30, announcements_in_month: 5}
+
+  - name: int_fuel_monthly_discontinued_fuel_stops_and_today_is_the_limit
+    description: >
+      A fuel last announced on 6 June while others continue is discontinued: its price runs
+      only until the next announcement of any fuel (12 June), not to today. A fuel still being
+      published runs to today (29 June), never into the future.
+    model: int_fuel_monthly
+    overrides:
+      macros:
+        kl_today: "cast('2024-06-29' as date)"
+    given:
+      - input: ref('stg_fuel_prices')
+        rows:
+          - {price_date: 2024-06-06, fuel_type: ron95, price_myr: 2.05}
+          - {price_date: 2024-06-06, fuel_type: retired_scheme, price_myr: 1.50}
+          - {price_date: 2024-06-13, fuel_type: ron95, price_myr: 2.05}
+          - {price_date: 2024-06-20, fuel_type: ron95, price_myr: 2.05}
+          - {price_date: 2024-06-27, fuel_type: ron95, price_myr: 2.05}
+    expect:
+      rows:
+        - {month_date: 2024-06-01, fuel_type: ron95, days_priced: 24}
+        - {month_date: 2024-06-01, fuel_type: retired_scheme, days_priced: 7}
+
+  - name: int_fuel_weekly_changes_events_never_duplicate_rows
+    description: >
+      A date that matches both a fuel-specific event and an 'all' event must still give one row
+      per announcement, with both descriptions joined.
+    model: int_fuel_weekly_changes
+    given:
+      - input: ref('stg_fuel_prices')
+        rows:
+          - {price_date: 2024-06-06, fuel_type: diesel, price_myr: 2.15}
+          - {price_date: 2024-06-10, fuel_type: diesel, price_myr: 3.35}
+      - input: ref('fuel_price_events')
+        rows:
+          - {event_date: 2024-06-10, fuel_type: diesel, event_kind: price_shock, description: "diesel event"}
+          - {event_date: 2024-06-10, fuel_type: all, event_kind: schedule_change, description: "all-fuel event"}
+    expect:
+      rows:
+        - {price_date: 2024-06-06, fuel_type: diesel, change_myr: null, event_description: null}
+        - {price_date: 2024-06-10, fuel_type: diesel, change_myr: 1.20, event_description: "all-fuel event; diesel event"}

@@ -42,3 +42,32 @@ seeds:
       - name: currency_name
         description: "Common English name."
         data_tests: [not_null]
+
+  - name: fuel_price_events
+    description: >
+      Reviewed, real events in the fuel price series, found when warning tests fired on real data.
+      Grain: one row per (event_date, fuel_type); fuel_type 'all' means every fuel type that day.
+      Rows listed here are excluded from the "unusual change" and "long gap" warning tests, so
+      those tests only fire for something NEW. The descriptions also annotate the dashboard.
+      Add a row only after looking at the data; never to silence a warning you have not understood.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [event_date, fuel_type]
+    columns:
+      - name: event_date
+        description: "The price_date of the announcement the event refers to."
+        data_tests: [not_null]
+      - name: fuel_type
+        description: "A fuel type, or 'all' for every fuel type on that date."
+        data_tests: [not_null]
+      - name: event_kind
+        description: "price_shock (a large change) or schedule_change (announcements irregular)."
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [price_shock, schedule_change]
+      - name: description
+        description: "What the data shows, in one line. Facts from the data, not background claims."
+        data_tests: [not_null]

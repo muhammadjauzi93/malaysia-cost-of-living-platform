@@ -1,0 +1,7 @@
+event_date,fuel_type,event_kind,description
+2018-06-07,all,schedule_change,"No announcement for 4 weeks; prices held (RON95 RM2.20, diesel RM2.18)"
+2018-10-01,all,schedule_change,"Announcements moved from weekly to the 1st of each month; September 2018 had none"
+2018-11-01,all,schedule_change,"Monthly announcement during the late-2018 monthly schedule"
+2018-12-01,all,schedule_change,"Monthly announcement during the late-2018 monthly schedule"
+2019-01-01,all,schedule_change,"Last monthly announcement before weekly announcements resumed"
+2024-06-10,diesel,price_shock,"Diesel rose RM1.20 (RM2.15 to RM3.35) in an off-cycle Monday announcement; diesel_eastmsia did not take the same jump"

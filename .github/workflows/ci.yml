@@ -83,6 +83,10 @@ jobs:
       # and re-runs its uniqueness tests: proof on every PR that a re-run never duplicates rows.
       - name: Incremental re-run stays duplicate-free
         run: uv run python tasks.py dbt build -s fct_fuel_prices
+      # docs/lineage.svg is generated from dbt's manifest; a PR that changes models must
+      # regenerate it (python tasks.py lineage), so the diagram in the README is never stale.
+      - name: Lineage diagram matches the models
+        run: uv run python tasks.py lineage --check
       - run: uv run python tasks.py dbt-freshness
 
   # Windows: service containers only run on Linux runners, so integration tests skip here.

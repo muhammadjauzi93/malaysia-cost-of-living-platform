@@ -1,0 +1,45 @@
+version: 2
+
+snapshots:
+  - name: snap_fuel_prices
+    description: >
+      History of every published fuel price, including revisions (SCD Type 2). The raw table is
+      upserted, so a corrected price overwrites the old one; this snapshot keeps both. Each row is
+      one version of one price: dbt_valid_from is when the snapshot first saw it, dbt_valid_to is
+      when it was replaced (null for the current version).
+      Grain: one row per (price_date, fuel_type, version).
+    relation: source('raw', 'fuel_price_weekly')
+    config:
+      schema: snapshots
+      unique_key: [price_date, fuel_type]
+      # Timestamp strategy on loaded_at (DECISIONS.md #48). It is reliable here only because the
+      # loader moves loaded_at exactly when a price changes (DECISIONS.md #4).
+      strategy: timestamp
+      updated_at: loaded_at
+      # A price that disappears from raw stays in history as it was; it is not closed.
+      hard_deletes: ignore
+    columns:
+      - name: price_date
+        description: "Date the price took effect."
+        data_tests: [not_null]
+      - name: fuel_type
+        description: "Fuel type as published (raw, not yet cleaned by staging)."
+        data_tests: [not_null]
+      - name: price_myr
+        description: "The price in this version, MYR per litre."
+        data_tests: [not_null]
+      - name: source
+        description: "Where the row came from; 'synthetic-sample' marks fake CI data."
+      - name: loaded_at
+        description: "When the pipeline wrote this version. Drives the timestamp strategy."
+        data_tests: [not_null]
+      - name: dbt_scd_id
+        description: "dbt's unique id for this version."
+        data_tests: [unique, not_null]
+      - name: dbt_updated_at
+        description: "The loaded_at value dbt recorded for this version."
+      - name: dbt_valid_from
+        description: "When this version became current in the snapshot."
+        data_tests: [not_null]
+      - name: dbt_valid_to
+        description: "When this version was replaced; null while it is the current version."

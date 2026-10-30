@@ -8,7 +8,8 @@ tells dbt where the database is.
 python tasks.py dbt-build              # deps (first time) + build every model + run every test
 python tasks.py dbt build -s stg_fx_rates+    # one model and everything downstream
 python tasks.py dbt-freshness          # source freshness
-python tasks.py dbt docs generate      # docs site and lineage graph (target/)
+python tasks.py dbt-docs               # docs site and lineage graph at http://localhost:8080
+python tasks.py lineage                # redraw ../docs/lineage.svg after changing models
 ```
 
 ## Layers

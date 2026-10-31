@@ -173,3 +173,33 @@ def test_a_failing_dbt_test_fails_the_ingestion_run(engine, test_db_url, tmp_pat
     assert not result.success, "a failed dbt test must fail the run, which triggers the alert"
     failed = {e.check_name for e in result.get_asset_check_evaluations() if not e.passed}
     assert any("unique_combination_of_columns" in name for name in failed), failed
+
+
+def test_an_identical_price_run_alerts_but_the_dashboard_still_refreshes(
+    engine, test_db_url, tmp_path
+):
+    """DECISIONS.md #53: a copied price series fails the run (so the alert fires), but the
+    assets have already been refreshed, so the dashboard mart is not frozen by one bad series."""
+    load_sample(engine, kl_today())
+    defs = build(test_db_url, tmp_path, latest_fuel_record(engine))
+    assert run(defs, "dbt_build_job").success
+
+    # The incident: diesel_eastmsia copies peninsular diesel for the three latest announcements.
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                "INSERT INTO raw.fuel_price_weekly (price_date, fuel_type, price_myr) "
+                "SELECT price_date, 'diesel_eastmsia', price_myr FROM raw.fuel_price_weekly "
+                "WHERE fuel_type = 'diesel' AND price_date IN ("
+                "  SELECT price_date FROM (SELECT DISTINCT price_date FROM raw.fuel_price_weekly "
+                "  ORDER BY price_date DESC LIMIT 3) newest)"
+            )
+        )
+
+    result = run(defs, "fuel_prices_job")
+    failed = {e.check_name for e in result.get_asset_check_evaluations() if not e.passed}
+    assert any("assert_no_unreviewed_identical_fuel_runs" in name for name in failed), failed
+    assert not result.success, "the rule must fail the run so the failure alert fires"
+
+    refreshed = {e.asset_key.to_user_string() for e in result.get_asset_materialization_events()}
+    assert "marts/fct_fuel_vs_transport_cpi" in refreshed, "the dashboard mart must still refresh"

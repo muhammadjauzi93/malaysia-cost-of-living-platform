@@ -577,3 +577,54 @@ ideas transfer directly: schedules, retries, idempotent tasks, backfills, sensor
 **Plan.** Keep Dagster here. Learn Airflow hands-on in Tier 5 by rebuilding a pipeline on managed
 Airflow, where it is the natural tool. **Lesson:** write the reason down when the choice is made;
 reconstructing it later is weaker evidence than a decision recorded at the time.
+
+### 53. A copied price series fails a quality rule, unless it has been reviewed
+
+**Found on real data.** From 1 October 2026, `diesel_eastmsia` carried exactly the peninsular
+`diesel` price every week: RM5.27, 5.27, 5.17, 5.07 and 5.27. The range check (RM0.50 to RM10.00)
+accepted every value, and the week-on-week warning caught only the first jump from RM2.15. Nothing
+caught the repetition itself. The pipeline recorded what the publisher returned, and the snapshot
+kept the earlier RM2.15 version, so the history is traceable.
+
+**Decision.** `int_fuel_identical_runs` lists every run of consecutive shared announcements in which
+two fuel types carry the same price. A singular test, `assert_no_unreviewed_identical_fuel_runs`,
+fails for any run of at least three announcements whose first date has no reviewed event in
+`fuel_price_events.csv` for either fuel or for every fuel. The threshold is the variable
+`identical_run_min_announcements` (default 3).
+
+**Why a reviewed event, not a plain rule.** Two fuels were legitimately identical in 2018: diesel
+and East Malaysia diesel were both RM2.18 for five announcements while prices were frozen. That is
+already in the data, so a rule with no exception fails on history. The 2018 freeze starts on a date
+already reviewed as a schedule change, so the run is accepted. The same mechanism applies to any
+future legitimate match, and the review stays in version control.
+
+**Severity: error, but it does not stop the dashboard.** A failing dbt test fails the Dagster run,
+which sends the failure alert. The assets still materialise before checks run, so the mart refreshes.
+An end-to-end test proves both: the run fails, and `marts/fct_fuel_vs_transport_cpi` is rebuilt in
+the same run. A copied series is not published as a real value, but one bad series must not freeze
+the dashboard.
+
+**What it was tested against.**
+- Clean synthetic sample: the rule stays silent (217 of 217).
+- The incident reproduced: exactly one run is found, starting 15 October with three announcements.
+- Unit tests on the model: two identical runs separated by a different price are two runs; a
+  reviewed 2018 run is marked reviewed and an unreviewed 2026 run is not.
+- Sabotage: with the threshold set to 99, the end-to-end test fails with no check failing, so it
+  does test the rule.
+
+**Trade-offs.**
+- **A legitimate identical price will alert** until someone reviews it. That is the cost of a rule
+  that does not depend on knowing the answer in advance.
+- **A missing announcement does not break a run.** The first version of the model merged a 2018
+  run with a 2026 run, because nothing differed between them. A stretch where one fuel has no
+  announcements counts as consecutive. Real history has many differing weeks between the two, so
+  this does not affect current results, but it is a choice, and the unit tests record it.
+- **The first build on your real data may show other historical runs** we have not seen. Each one
+  needs the same decision: a real freeze gets a reviewed event; an error goes to the publisher.
+- **The range check is still too wide for this.** A per-fuel band would not have caught this
+  either: diesel itself trades around RM5.27, so the value sits inside a sensible band. Only the
+  repetition gives it away, which is why this is a separate rule. Narrower bands are a later
+  improvement.
+
+**Action for the publisher.** Report the `diesel_eastmsia` values for the weeks of 1 to 29 October
+2026 to data.gov.my, with the table from this decision as evidence.

@@ -9,7 +9,7 @@ which states feel it most?**
 > **Status: Phase 3 of 4 complete.** Three public sources are ingested into Postgres on a
 > schedule by Dagster, behind a blocking data-quality gate, with freshness monitoring and failure
 > alerts (Phase 2). A dbt warehouse turns them into tested staging, intermediate and mart layers
-> (16 models, 4 seeds, a snapshot, 184 tests including 4 unit tests), built in CI on every
+> (17 models, 4 seeds, a snapshot, 195 tests including 6 unit tests), built in CI on every
 > pull request (Phase 3). The dashboard is next. See the [roadmap](#roadmap).
 
 ## Architecture
@@ -262,9 +262,13 @@ with every test, source freshness); the Windows job also checks that the dbt pro
   load (#51), so it sees every revision the pipeline loads. A revision the source publishes and
   corrects again between two pipeline runs is still never seen; that limit is upstream of us.
   Schedules only fire while `python tasks.py dagster` is running (#26).
-* **Real data:** the full dbt build, snapshot included, passes on real data (205 of 205, no
-  warnings). A CPI state spelled differently from `dbt/seeds/state_reference.csv` fails the build
-  by design.
+* **Identical-price rule (DECISIONS.md #53):** on the current data it fails on the
+  `diesel_eastmsia` series, which has matched peninsular `diesel` to the sen since 1 October 2026.
+  The rule reports it and alerts; the dashboard mart still refreshes. It stays failing until the
+  publisher corrects the figures, which is deliberate: the rule must not be silenced with an event.
+  Before that rule, the full build passed on real data with no warnings (205 of 205).
+* **A CPI state spelled differently** from `dbt/seeds/state_reference.csv` fails the build by
+  design.
 * **Dagster runs on the host** with `dagster dev`, not in a container. See #26.
 
 ## Design decisions
@@ -279,7 +283,7 @@ warehouse (#30 to #50) and its orchestration (#51 onwards).
 - [x] **Phase 2** CPI and exchange rates. Dagster schedules, retries, blocking quality gate, freshness monitoring, alerts.
 - [x] **Phase 3** dbt staging, intermediate and marts; snapshots; docs; dbt in CI. Against the
   roadmap's Tier 3 criteria:
-  - [x] 15 or more models across three layers: 16 (3 staging, 4 intermediate, 9 marts)
+  - [x] 15 or more models across three layers: 17 (3 staging, 5 intermediate, 9 marts)
   - [x] Every column described and every model tested (enforced by `tests/test_dbt_project.py`)
   - [x] Incremental fact that never duplicates on re-run (`fct_fuel_prices`, re-run in CI)
   - [x] A snapshot keeping history of a changing source (`snap_fuel_prices`)

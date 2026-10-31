@@ -180,6 +180,42 @@ models:
                 min_value: 1
                 max_value: 23
 
+  - name: int_fuel_identical_runs
+    description: >
+      Runs of consecutive announcements in which two fuel types carry exactly the same price,
+      with whether the run's first date has a reviewed event. Grain: one row per
+      (fuel_a, fuel_b, run_start), where fuel_a sorts before fuel_b. Feeds the identical-price
+      quality rule (DECISIONS.md #53).
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [fuel_a, fuel_b, run_start]
+    columns:
+      - name: fuel_a
+        description: "The first fuel of the pair, alphabetically."
+        data_tests: [not_null]
+      - name: fuel_b
+        description: "The second fuel of the pair."
+        data_tests: [not_null]
+      - name: run_start
+        description: "First announcement date of the run."
+        data_tests: [not_null]
+      - name: run_end
+        description: "Last announcement date of the run."
+        data_tests: [not_null]
+      - name: announcements
+        description: "Number of consecutive shared announcements with identical prices."
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 1
+      - name: run_start_reviewed
+        description: >
+          True when a reviewed event in fuel_price_events covers the run's first date for either
+          fuel, or for every fuel. A reviewed run is accepted; an unreviewed one fails the rule.
+        data_tests: [not_null]
+
 # Unit tests: fixed input rows in, exact rows out, no database data needed. The cases are the real
 # ones the first live run exposed (DECISIONS.md #46). "Today" is pinned so results never drift.
 unit_tests:
@@ -264,3 +300,58 @@ unit_tests:
       rows:
         - {price_date: 2024-06-06, fuel_type: diesel, change_myr: null, event_description: null}
         - {price_date: 2024-06-10, fuel_type: diesel, change_myr: 1.20, event_description: "all-fuel event; diesel event"}
+
+  - name: identical_runs_breaks
+    description: >
+      Two identical stretches separated by a different price are two runs, and a pair that matches
+      once is a run of one. A run is excused only when its first date is reviewed.
+    model: int_fuel_identical_runs
+    given:
+      - input: ref('stg_fuel_prices')
+        rows:
+          - {price_date: 2026-10-01, fuel_type: diesel, price_myr: 4.00}
+          - {price_date: 2026-10-01, fuel_type: diesel_eastmsia, price_myr: 4.00}
+          - {price_date: 2026-10-08, fuel_type: diesel, price_myr: 4.00}
+          - {price_date: 2026-10-08, fuel_type: diesel_eastmsia, price_myr: 4.10}
+          - {price_date: 2026-10-15, fuel_type: diesel, price_myr: 4.00}
+          - {price_date: 2026-10-15, fuel_type: diesel_eastmsia, price_myr: 4.00}
+          - {price_date: 2026-10-01, fuel_type: ron95, price_myr: 9.00}
+          - {price_date: 2026-10-01, fuel_type: ron97, price_myr: 9.00}
+      - input: ref('fuel_price_events')
+        rows:
+          - {event_date: 2018-06-07, fuel_type: all, event_kind: schedule_change, description: "unrelated"}
+    expect:
+      rows:
+        - {fuel_a: diesel, fuel_b: diesel_eastmsia, run_start: 2026-10-01, run_end: 2026-10-01, announcements: 1, run_start_reviewed: false}
+        - {fuel_a: diesel, fuel_b: diesel_eastmsia, run_start: 2026-10-15, run_end: 2026-10-15, announcements: 1, run_start_reviewed: false}
+        - {fuel_a: ron95, fuel_b: ron97, run_start: 2026-10-01, run_end: 2026-10-01, announcements: 1, run_start_reviewed: false}
+
+  - name: identical_runs_reviewed_start_2018
+    description: >
+      The 2018 freeze is a run of identical diesel prices that starts on a reviewed date, so it is
+      accepted; the 2026 copy starts on an unreviewed date, so it is not.
+    model: int_fuel_identical_runs
+    given:
+      - input: ref('stg_fuel_prices')
+        rows:
+          - {price_date: 2018-06-07, fuel_type: diesel, price_myr: 2.18}
+          - {price_date: 2018-06-07, fuel_type: diesel_eastmsia, price_myr: 2.18}
+          - {price_date: 2018-10-01, fuel_type: diesel, price_myr: 2.18}
+          - {price_date: 2018-10-01, fuel_type: diesel_eastmsia, price_myr: 2.18}
+          - {price_date: 2018-11-01, fuel_type: diesel, price_myr: 2.18}
+          - {price_date: 2018-11-01, fuel_type: diesel_eastmsia, price_myr: 2.18}
+          - {price_date: 2019-06-06, fuel_type: diesel, price_myr: 2.20}
+          - {price_date: 2019-06-06, fuel_type: diesel_eastmsia, price_myr: 2.25}
+          - {price_date: 2026-10-01, fuel_type: diesel, price_myr: 5.27}
+          - {price_date: 2026-10-01, fuel_type: diesel_eastmsia, price_myr: 5.27}
+          - {price_date: 2026-10-08, fuel_type: diesel, price_myr: 5.27}
+          - {price_date: 2026-10-08, fuel_type: diesel_eastmsia, price_myr: 5.27}
+          - {price_date: 2026-10-15, fuel_type: diesel, price_myr: 5.17}
+          - {price_date: 2026-10-15, fuel_type: diesel_eastmsia, price_myr: 5.17}
+      - input: ref('fuel_price_events')
+        rows:
+          - {event_date: 2018-06-07, fuel_type: all, event_kind: schedule_change, description: "frozen schedule"}
+    expect:
+      rows:
+        - {fuel_a: diesel, fuel_b: diesel_eastmsia, run_start: 2018-06-07, run_end: 2018-11-01, announcements: 3, run_start_reviewed: true}
+        - {fuel_a: diesel, fuel_b: diesel_eastmsia, run_start: 2026-10-01, run_end: 2026-10-15, announcements: 3, run_start_reviewed: false}

@@ -118,6 +118,8 @@ python tasks.py dbt <any dbt command>   # e.g. dbt test -s stg_fx_rates, dbt doc
 python tasks.py dbt-docs              # dbt docs site with the lineage graph, http://localhost:8080
 python tasks.py lineage               # redraw docs/lineage.svg after changing models
 python tasks.py load-sample           # SYNTHETIC data into an EMPTY database (CI, demos)
+python tasks.py create-dashboard-role # the dashboard's read-only database login
+python tasks.py dashboard             # the dashboard, http://localhost:8501
 python tasks.py test | lint | fmt
 python tasks.py psql | reset-db | down
 ```
@@ -150,6 +152,17 @@ This diagram is generated from dbt's own manifest (`python tasks.py lineage`), a
 request whose diagram no longer matches the models, so it cannot go stale. For the interactive
 version with every model and column description, run `python tasks.py dbt-docs`. The same
 descriptions are written into Postgres as comments, so they also appear in any SQL client.
+
+### The dashboard (Phase 4, in progress)
+
+A Streamlit app that reads only the `marts` schema. It connects as `dashboard_reader`, a role
+that can `SELECT` from `marts` and nothing else, so the database itself enforces that rule.
+Set `DASHBOARD_DB_PASSWORD` in `.env` (see `.env.example`), then:
+
+```bash
+python tasks.py create-dashboard-role   # once, after dbt-build; again after a schema is dropped
+python tasks.py dashboard               # http://localhost:8501
+```
 
 ## Query the data
 

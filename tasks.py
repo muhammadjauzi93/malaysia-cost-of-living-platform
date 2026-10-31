@@ -378,6 +378,23 @@ def load_sample(args: list[str]) -> int:
     return py("-m", "col_pipeline.cli", "load-sample", *args)
 
 
+# ---------- dashboard ----------
+
+DASHBOARD_APP = ROOT / "src" / "col_pipeline" / "dashboard" / "app.py"
+
+
+@task
+def create_dashboard_role(args: list[str]) -> int:
+    """Create the dashboard's read-only database role (after dbt-build; safe to repeat)."""
+    return py("-m", "col_pipeline.cli", "create-dashboard-role")
+
+
+@task
+def dashboard(args: list[str]) -> int:
+    """Start the dashboard at http://localhost:8501 (Ctrl+C to stop)."""
+    return py("-m", "streamlit", "run", str(DASHBOARD_APP), *args)
+
+
 @task
 def runs(args: list[str]) -> int:
     """Show recent pipeline runs. Pass -n 20 for more."""

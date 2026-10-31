@@ -69,6 +69,11 @@ def test_dbt_tasks_exist():
     assert {"dbt", "dbt-build", "dbt-freshness", "load-sample"} <= set(tasks.TASKS)
 
 
+def test_dashboard_tasks_exist_and_point_at_the_app():
+    assert {"dashboard", "create-dashboard-role"} <= set(tasks.TASKS)
+    assert tasks.DASHBOARD_APP.is_file()
+
+
 def test_read_dotenv_handles_comments_quotes_and_export(tmp_path):
     env_file = tmp_path / ".env"
     env_file.write_text(

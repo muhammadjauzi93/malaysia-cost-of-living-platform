@@ -10,7 +10,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 
 from dotenv import load_dotenv
-from sqlalchemy.engine import URL
+from sqlalchemy.engine import URL, make_url
 
 DEFAULT_DB_HOST = "localhost"
 DEFAULT_DB_PORT = 5433  # host side of the docker-compose port mapping
@@ -42,6 +42,31 @@ def db_url_from_env(env: Mapping[str, str]) -> str:
         host=env.get("POSTGRES_HOST") or DEFAULT_DB_HOST,
         port=int(env.get("POSTGRES_PORT") or DEFAULT_DB_PORT),
         database=env["POSTGRES_DB"],
+    )
+    return url.render_as_string(hide_password=False)
+
+
+DEFAULT_DASHBOARD_USER = "dashboard_reader"
+
+
+def dashboard_db_url_from_env(env: Mapping[str, str]) -> str:
+    """The URL the dashboard connects with: the same database, as the read-only role.
+
+    An explicit DASHBOARD_DB_URL wins. Otherwise the host, port and database come from the
+    pipeline's own settings (DB_URL or POSTGRES_*), and only the user and password change, so
+    the dashboard can never point at a different database from the one the pipeline loads.
+    """
+    if explicit := env.get("DASHBOARD_DB_URL"):
+        return explicit
+
+    password = env.get("DASHBOARD_DB_PASSWORD")
+    if not password:
+        raise RuntimeError(
+            "Dashboard settings missing: DASHBOARD_DB_PASSWORD. Add it to .env, then run "
+            "`python tasks.py create-dashboard-role` (see .env.example)."
+        )
+    url = make_url(db_url_from_env(env)).set(
+        username=env.get("DASHBOARD_DB_USER") or DEFAULT_DASHBOARD_USER, password=password
     )
     return url.render_as_string(hide_password=False)
 

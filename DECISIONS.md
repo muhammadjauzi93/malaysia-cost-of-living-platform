@@ -767,3 +767,48 @@ site, DECISIONS for every phase, and launch posts.
 **Out of scope, on purpose.** Hosting the dashboard, an API, forecasting or ML, fixing the
 identical-price rule's review gap, and resolving the open real-data runs (#53a). These are listed
 in the README as known issues or next steps, not hidden.
+
+### 61. How the read-only role is built and kept (step 4.1)
+
+**Decision.** `python tasks.py create-dashboard-role` creates `dashboard_reader` with `USAGE` on
+`marts`, `SELECT` on its tables, and a default privilege so that tables dbt creates there later
+are readable too. It is a separate task, safe to repeat, and not part of `sql/schema.sql`.
+
+**Why default privileges, not dbt's `grants` config.** dbt rebuilds every mart as a new table, and
+a grant on the old table goes with it. dbt's `grants` would re-apply the grant on every build, but
+it fails on any database where the role does not exist, which is CI, a fresh clone, and every
+reviewer's first build. It would also change the dbt project, which Phase 4 avoids. The default
+privilege is set once, by the user that runs dbt, and survives every rebuild. A test runs
+`dbt run` on the mart and reads it again as the role. With the default privilege removed, that
+test fails with `permission denied for table fct_fuel_vs_transport_cpi`. That failure was checked
+on purpose, so the test is known to catch the problem.
+
+**Why not `schema.sql`.** Docker runs it only on a brand-new volume, and creating the role there
+would mean passing a second password into the container. A task also lets a repeat reset the
+password from `.env`.
+
+**Read-only three times over.** The role can only `SELECT`. The role also has
+`default_transaction_read_only = on`. The app opens every session read-only as well. The
+dashboard's code reads through one function that accepts only a bare table name and always
+adds the `marts.` prefix, so there is no way to pass SQL or another schema.
+
+**No fallback to the owner's password.** If `DASHBOARD_DB_PASSWORD` is missing, the app shows an
+error. Falling back to `POSTGRES_PASSWORD` would make it work while silently bypassing the role.
+
+**Trade-offs.**
+- Dropping the `marts` schema also drops its default privilege. A rebuild does not drop the
+  schema, but `reset-db` and the Dagster integration tests do, so the task must run again after
+  them. The README says so, and in CI the role tests run before the tests that drop schemas.
+- Postgres roles belong to the whole server, not one database. So the tests use their own role,
+  `dashboard_reader_test`, rather than resetting the real role's password, which would also
+  change it for every other database on that server.
+
+**Other choices made here.**
+- Charts will use Altair, which Streamlit already installs, so there is no second charting
+  dependency.
+- `.streamlit/config.toml` turns off Streamlit's usage statistics and its first-run email prompt.
+- Adding Streamlit changed no pinned version in `uv.lock`; protobuf stays at 6.33.6 (#54).
+
+**Not verified.** The CI steps have not run on GitHub yet. The dashboard has not been opened in a
+browser; a Streamlit test harness ran the script against a scratch warehouse, and the
+`dashboard` task's server answered its health check.

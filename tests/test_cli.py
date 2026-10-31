@@ -124,3 +124,41 @@ def test_last_weekday_before_skips_weekends():
 
     assert cli.last_weekday_before(date(2026, 10, 26)) == date(2026, 10, 23)  # Mon -> Fri
     assert cli.last_weekday_before(date(2026, 10, 27)) == date(2026, 10, 26)  # Tue -> Mon
+
+
+def test_create_dashboard_role_needs_its_password_before_touching_the_database(
+    monkeypatch, capsys, settings
+):
+    monkeypatch.setattr(cli.Settings, "from_env", classmethod(lambda cls: settings))
+    monkeypatch.setenv("DASHBOARD_DB_PASSWORD", "")
+    monkeypatch.setattr(cli, "create_engine", lambda *a, **k: pytest.fail("connected anyway"))
+    assert cli.main(["create-dashboard-role"]) == 1
+    assert "DASHBOARD_DB_PASSWORD" in capsys.readouterr().out
+
+
+def test_create_dashboard_role_failure_never_prints_the_password(monkeypatch, capsys, settings):
+    # Postgres quotes the failing statement on later lines, and that statement holds the password.
+    class Refused(Exception):
+        pass
+
+    def refuse(conn, role, password):
+        raise Refused(f"syntax error\nLINE 1: ALTER ROLE r PASSWORD '{password}'")
+
+    monkeypatch.setattr(cli.Settings, "from_env", classmethod(lambda cls: settings))
+    monkeypatch.setenv("DASHBOARD_DB_PASSWORD", "hunter2-secret")
+    monkeypatch.setattr("col_pipeline.dashboard.roles.grant_dashboard_reader", refuse)
+    monkeypatch.setattr(cli, "create_engine", lambda *a, **k: _FakeEngine())
+    assert cli.main(["create-dashboard-role"]) == 1
+    out = capsys.readouterr().out
+    assert "syntax error" in out
+    assert "hunter2-secret" not in out
+
+
+class _FakeEngine:
+    def begin(self):
+        from contextlib import nullcontext
+
+        return nullcontext(None)
+
+    def dispose(self):
+        pass

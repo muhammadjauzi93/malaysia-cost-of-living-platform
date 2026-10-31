@@ -1,0 +1,13 @@
+# Streamlit reads this when `python tasks.py dashboard` starts it from the repo root.
+
+[server]
+# Without this, the first run stops at a prompt asking for an email address.
+showEmailPrompt = false
+
+[browser]
+# Streamlit sends usage statistics by default. A local portfolio dashboard has no reason to.
+gatherUsageStats = false
+
+[client]
+# Hide the developer menu (rerun, clear cache, settings) from someone viewing the dashboard.
+toolbarMode = "viewer"

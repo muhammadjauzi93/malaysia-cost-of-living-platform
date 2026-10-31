@@ -118,3 +118,13 @@ def test_schedules_still_drive_the_dbt_aware_jobs(graph):
         schedule = graph.get_schedule_def(f"{name}_schedule")
         assert schedule.job_name == f"{name}_job"
         assert schedule.execution_timezone == "Asia/Kuala_Lumpur"
+
+
+def test_dbt_is_found_without_relying_on_path(monkeypatch):
+    """Regression: `python tasks.py` runs the venv's Python without activating the venv, so the
+    folder holding the dbt program is not on PATH. dagster-dbt's default ('dbt' on PATH) failed
+    on the first real run on Windows. The resource must find dbt beside the running Python."""
+    monkeypatch.setenv("PATH", "")
+    resource = dbt_orch.dbt_resource()  # raised a ValidationError before the fix
+    assert os.path.isabs(resource.dbt_executable)
+    assert os.path.exists(resource.dbt_executable)

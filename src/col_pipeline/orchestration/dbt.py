@@ -16,6 +16,8 @@ See DECISIONS.md #51.
 # `context` annotation of asset functions, and postponed (string) annotations break that check.
 
 import os
+import shutil
+import sys
 from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
 from pathlib import Path
@@ -139,5 +141,22 @@ def build_dbt_assets(
     return warehouse
 
 
+def dbt_executable() -> str:
+    """The dbt program installed alongside the Python running Dagster.
+
+    Found by sys.executable, not PATH: `python tasks.py` starts the venv's Python directly
+    without activating the venv, so the venv's Scripts (Windows) or bin folder is not on PATH,
+    and dagster-dbt's default lookup of plain `dbt` fails. Found on the first real run on
+    Windows; CI missed it because `uv run` puts that folder on PATH. Falls back to PATH.
+    """
+    name = "dbt.exe" if os.name == "nt" else "dbt"
+    beside_python = Path(sys.executable).parent / name
+    if beside_python.exists():
+        return str(beside_python)
+    return shutil.which("dbt") or "dbt"
+
+
 def dbt_resource() -> DbtCliResource:
-    return DbtCliResource(project_dir=str(DBT_DIR), profiles_dir=str(DBT_DIR))
+    return DbtCliResource(
+        project_dir=str(DBT_DIR), profiles_dir=str(DBT_DIR), dbt_executable=dbt_executable()
+    )

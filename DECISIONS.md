@@ -540,6 +540,13 @@ whole warehouse, needed once on a fresh database where seeds do not exist yet.
   1.13 through an extra this project does not install, so that bound is now stated in our own
   `pyproject.toml`.
 - No retry on the dbt step: a failed dbt test is deterministic (#20).
+- **Found on the first real run, on Windows:** dagster-dbt looks for a program called `dbt` on
+  PATH. `python tasks.py` starts the venv's Python directly without activating the venv, so the
+  folder holding `dbt.exe` was not on PATH and the run stopped before doing anything. Every test
+  and CI step had passed because they all used `uv run`, which puts that folder on PATH. The
+  resource now points at the `dbt` program beside the running Python, a regression test empties
+  PATH and builds it, and CI's `validate` steps run plain `python tasks.py`, as the README does.
+  **Lesson:** test the command the way users run it, not the way it is convenient to run in CI.
 
 **Tested** with real Dagster, dbt and Postgres: a revised RON95 price went through gate, load,
 staging, the snapshot (two versions, old one closed) and the mart in one run, and a failing dbt

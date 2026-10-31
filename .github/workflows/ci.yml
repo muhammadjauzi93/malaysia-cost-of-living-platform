@@ -44,10 +44,12 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - run: uv sync --locked
       - run: uv run pytest -v
+      # Plain `python3 tasks.py`, not `uv run`: that is how the README runs it, and `uv run` puts
+      # the venv on PATH, which hid a bug where dbt could not be found (DECISIONS.md #51).
       - name: Dagster can load every definition
         env:
           DB_URL: postgresql+psycopg2://ci:ci@localhost:5432/col_ci
-        run: uv run python tasks.py validate
+        run: python3 tasks.py validate
 
   # The warehouse layer. Rebuilds the whole chain on a throwaway database: raw schema ->
   # synthetic sample data (through the real loader and quality gate) -> dbt build, which runs
@@ -113,10 +115,12 @@ jobs:
       - run: uv run python tasks.py help
       # validate installs dbt packages and parses the dbt project first (tasks.py), so this also
       # proves the dbt project parses on Windows. No database is needed for either.
+      # Plain `python tasks.py`, as the README runs it: `uv run` would put the venv on PATH and
+      # hide the "dbt not found" bug that the first real run on Windows hit.
       - name: Dagster can load every definition, dbt included, on Windows
         env:
           DB_URL: postgresql+psycopg2://unused:unused@localhost:5432/unused
-        run: uv run python tasks.py validate
+        run: python tasks.py validate
 
   # The no-uv path from the README, on both OS families.
   pip-fallback:

@@ -628,3 +628,34 @@ the dashboard.
 
 **Action for the publisher.** Report the `diesel_eastmsia` values for the weeks of 1 to 29 October
 2026 to data.gov.my, with the table from this decision as evidence.
+
+### 53a. Status at Phase 3 close
+
+**Real-data findings, not reviewed.** The rule reports three runs on the real data:
+
+1. `diesel` and `diesel_eastmsia` identical from 30 March 2017 to 6 June 2024 (359 announcements).
+   A seven-year match is either a genuine shared price or a copied column, and it has not been
+   checked against published weeks. The June 2024 event in the seed (East Malaysia diesel did not
+   take the peninsular jump) is consistent with the run ending on 6 June.
+2. `diesel_eastmsia` and `diesel_skds` identical from 10 June 2024 to 24 September 2026 (121
+   announcements). Possibly two subsidy schemes sharing a price; not checked against the scheme
+   definitions.
+3. `diesel` and `diesel_eastmsia` identical from 1 October to 29 October 2026 (5 announcements).
+   The incident in #53. For two years `diesel_eastmsia` followed `diesel_skds`; from 1 October it
+   follows peninsular `diesel`. A change of matching partner is the clearest sign of a column
+   problem rather than a market move.
+
+No reviewed events were recorded for these runs, and no report was made to the publisher. The
+rule fails until someone resolves them, which is the intended behaviour of an unreviewed run.
+
+**Known gap, not fixed.** The review check matches a run by its start date. If a reviewed run
+later grows, the new announcements are accepted silently, because the start date does not change.
+Run 1 shows the same problem in miniature: 2018 is inside a run that starts in 2017. The fix is a
+review that covers a span (a fuel pair, a start date and a reviewed end date), so any extension
+fails until it is reviewed. It was not built, because it changes what a review means and that
+change was not agreed for this phase. It should be the first change to the rule when work resumes.
+
+**Phase 3 scope at close.** The warehouse (staging, intermediate, marts, snapshot, lineage,
+persisted docs), its checks, and its orchestration in Dagster are complete and tested on the
+synthetic sample. The real-data findings above are open and documented; the rule is a working
+detector, not a resolved data-quality question.

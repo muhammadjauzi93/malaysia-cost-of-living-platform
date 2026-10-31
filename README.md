@@ -267,6 +267,12 @@ with every test, source freshness); the Windows job also checks that the dbt pro
   The rule reports it and alerts; the dashboard mart still refreshes. It stays failing until the
   publisher corrects the figures, which is deliberate: the rule must not be silenced with an event.
   Before that rule, the full build passed on real data with no warnings (205 of 205).
+  Phase 3 closes with this rule reporting three runs on real data, none of them reviewed. The
+  reviews are deliberately not recorded: the publisher is not being contacted, and the three runs
+  are left open for whoever maintains this project. Details in DECISIONS.md #53.
+* **The identical-price review matches by start date only.** A reviewed run stays accepted if it
+  grows, because only its first date is checked. A span-based review would close this; it is not
+  built (DECISIONS.md #53).
 * **A CPI state spelled differently** from `dbt/seeds/state_reference.csv` fails the build by
   design.
 * **Dagster runs on the host** with `dagster dev`, not in a container. See #26.

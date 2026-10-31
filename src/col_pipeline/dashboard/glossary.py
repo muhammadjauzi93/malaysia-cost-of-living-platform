@@ -216,8 +216,9 @@ TERMS: list[Term] = [
         "pp",
         stands_for="Percentage points",
         meaning=(
-            "The difference between two percentages. If transport CPI rose 0.40% after a fuel rise "
-            "and 0.08% after no change, the gap is 0.32 pp. Saying 0.32% would be wrong, because "
+            "The difference between two percentages. If transport CPI rose 0.40% in fuel-rise "
+            "months and 0.08% in months with no change, the gap is 0.32 pp. Saying 0.32% would be "
+            "wrong, because "
             "that means 0.32% of something."
         ),
         why_it_matters=(
@@ -276,14 +277,16 @@ TERMS: list[Term] = [
         pages=("The answer",),
     ),
     Term(
-        "The one-month lag",
+        "Same-month comparison",
         meaning=(
-            "Each month's transport CPI change is set beside the fuel change of the month before. "
-            "On the charts, dashed lines mark fuel moves: look one bar to the right for the effect."
+            "Each month's transport CPI change is set beside the fuel change of the same month. "
+            "On the charts, dashed lines mark fuel moves: the effect shows on the same line."
         ),
         why_it_matters=(
-            "A pump price rise can take time to reach fares, delivery charges and other transport "
-            "costs. Comparing the same month would miss most of it."
+            "CPI prices are collected through the month, so a weekly pump price change shows up in "
+            "the month it happens. On the real data, last month's change adds almost nothing once "
+            "this month's is counted; comparing with the month after mostly picks up the next "
+            "rise, because fuel changes come in runs (DECISIONS #65)."
         ),
         pages=("The answer", "States"),
     ),
@@ -300,14 +303,14 @@ TERMS: list[Term] = [
         pages=("The answer", "States"),
     ),
     Term(
-        "Extra transport inflation after a rise",
+        "Extra transport inflation in a rise month",
         meaning=(
-            "The average transport CPI change in the month after fuel rose, minus the average "
-            "after months when it held. All states, the selected period, in pp."
+            "The average transport CPI change in months when fuel rose, minus the average in "
+            "months when it held. All states, the selected period, in pp."
         ),
         why_it_matters=(
             "It is the answer in one number. Subtracting the months with no change takes out the "
-            "inflation that happens anyway, so only the extra after a rise is credited to fuel."
+            "inflation that happens anyway, so only the extra in a rise month is credited to fuel."
         ),
         pages=("The answer",),
     ),

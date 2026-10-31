@@ -104,10 +104,11 @@ def _as_layer(chart):
 
 
 def test_pass_through_bars_show_the_number_of_months_behind_each_bar(fvc):
-    result = an.pass_through(an.lag_pairs(fvc))
+    result = an.pass_through(an.change_pairs(fvc))
     chart_text = text(charts.pass_through_bars(result.by_direction))
     assert "+0.40% · 1 mo" in chart_text
-    assert "+0.08% · 2 mo" in chart_text
+    assert "+0.20% · 2 mo" in chart_text
+    assert "-0.03% · 1 mo" in chart_text
 
 
 def test_ranking_chart_lists_every_state_it_is_given(fvc):

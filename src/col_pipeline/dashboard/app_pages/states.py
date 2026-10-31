@@ -10,14 +10,14 @@ fuel = analysis.fuel_label(analysis.headline_fuel(fvc))
 st.title("Which states feel it most?")
 st.caption(
     f"The {fuel} price is the same everywhere; what differs is how each state's transport costs "
-    "respond. Compare states in the latest published month, over time, and after fuel rises."
+    "respond. Compare states in the latest published month, over time, and when fuel rises."
 )
 
 months = ui.period_picker()
 view = analysis.last_months(fvc, months)
 national = analysis.national_monthly(view)
 month, ranked = analysis.state_ranking(view)
-sensitivity = analysis.state_sensitivity(analysis.lag_pairs(view))
+sensitivity = analysis.state_sensitivity(analysis.change_pairs(view))
 awaiting = view.loc[view["cpi_status"] == analysis.AWAITING, "month_date"].drop_duplicates()
 
 # ---------- headline numbers ----------
@@ -70,10 +70,10 @@ with cards[3]:
             lead["state_name"],
             f"{lead['gap_pp']:+.2f} pp",
             delta_color="inverse",
-            delta_description="extra after a rise",
+            delta_description="extra in a rise month",
             border=True,
             height="stretch",
-            help="Transport CPI change after a fuel rise minus after no change, in that state.",
+            help="Transport CPI change in fuel-rise months minus no-change months, in that state.",
         )
 if len(awaiting):
     st.caption(
@@ -100,32 +100,34 @@ with right, st.container(border=True):
     st.altair_chart(grid, alt="Transport CPI change for every state and month")
     st.caption(
         f"Top strip: the national {fuel} change each month. Red cells: transport CPI rose. "
-        "Read one column to the right of a fuel bar for the month after. "
+        "Read straight down from a fuel bar for the same month. "
         "Dark cells with '…' are awaiting CPI."
     )
 
 with st.container(border=True):
-    st.subheader("After a fuel rise, by state")
+    st.subheader("When fuel rises, by state")
     st.dataframe(
         sensitivity,
         hide_index=True,
         height="content",
-        column_order=["state_name", "region", "after_rise", "after_no_change", "gap_pp", "rises"],
+        column_order=["state_name", "region", "with_rise", "with_no_change", "gap_pp", "rises"],
         column_config={
             "state_name": st.column_config.TextColumn("State"),
             "region": st.column_config.TextColumn("Region"),
-            "after_rise": st.column_config.NumberColumn("After a rise", format="%+.2f%%"),
-            "after_no_change": st.column_config.NumberColumn("After no change", format="%+.2f%%"),
+            "with_rise": st.column_config.NumberColumn("Rise months", format="%+.2f%%"),
+            "with_no_change": st.column_config.NumberColumn("No-change months", format="%+.2f%%"),
             "gap_pp": st.column_config.NumberColumn(
-                "Extra after a rise", format="%+.2f pp", help="After a rise minus after no change."
+                "Extra in a rise month",
+                format="%+.2f pp",
+                help="Rise months minus no-change months.",
             ),
             "rises": st.column_config.NumberColumn(
-                "Rise months", help="Months behind 'After a rise'."
+                "Number of rises", help="Months behind 'Rise months'."
             ),
         },
-        alt="Each state's average transport CPI change after a fuel rise and after no change",
+        alt="Each state's average transport CPI change in fuel-rise and no-change months",
     )
     st.caption(
-        "Sorted by the extra change after a rise. With few rise months, treat the order as a "
+        "Sorted by the extra change in a rise month. With few rise months, treat the order as a "
         "pointer to look closer, not a league table."
     )

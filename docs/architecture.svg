@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 790" width="1200" height="790" font-family="Segoe UI, Helvetica, Arial, sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1310 840" width="1310" height="840" font-family="Segoe UI, Helvetica, Arial, sans-serif">
   <defs>
     <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
       <path d="M0,0 L10,5 L0,10 z" fill="#334155"/>
@@ -12,140 +12,195 @@
     <marker id="arrow-teal" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
       <path d="M0,0 L10,5 L0,10 z" fill="#0d9488"/>
     </marker>
+    <marker id="arrow-orange" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#ea580c"/>
+    </marker>
     <marker id="arrow-grey" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
       <path d="M0,0 L10,5 L0,10 z" fill="#64748b"/>
     </marker>
   </defs>
 
   <!-- background -->
-  <rect width="1200" height="790" rx="20" fill="#ffffff"/>
-  <text x="600" y="48" text-anchor="middle" font-size="24" font-weight="700" fill="#0f172a">Malaysia Cost-of-Living Platform: Architecture</text>
+  <rect width="1310" height="840" rx="20" fill="#ffffff"/>
+  <text x="655" y="48" text-anchor="middle" font-size="24" font-weight="700" fill="#0f172a">Malaysia Cost-of-Living Platform: Architecture</text>
 
-  <!-- Sources container -->
-  <rect x="30" y="90" width="230" height="430" rx="16" fill="#eff6ff" stroke="#3b82f6" stroke-width="2"/>
-  <text x="145" y="120" text-anchor="middle" font-size="14" font-weight="700" fill="#1d4ed8">SOURCES</text>
+  <!-- ============ Sources ============ -->
+  <rect x="30" y="90" width="210" height="430" rx="16" fill="#eff6ff" stroke="#3b82f6" stroke-width="2"/>
+  <text x="135" y="120" text-anchor="middle" font-size="14" font-weight="700" fill="#1d4ed8">SOURCES</text>
 
-  <rect x="50" y="137" width="190" height="90" rx="12" fill="#3b82f6"/>
-  <text x="145" y="173" text-anchor="middle" font-size="16" font-weight="700" fill="#ffffff">data.gov.my</text>
-  <text x="145" y="197" text-anchor="middle" font-size="13" fill="#dbeafe">fuel prices · weekly</text>
+  <rect x="45" y="137" width="180" height="90" rx="12" fill="#3b82f6"/>
+  <text x="135" y="173" text-anchor="middle" font-size="16" font-weight="700" fill="#ffffff">data.gov.my</text>
+  <text x="135" y="197" text-anchor="middle" font-size="13" fill="#dbeafe">fuel prices · weekly</text>
 
-  <rect x="50" y="247" width="190" height="90" rx="12" fill="#10b981"/>
-  <text x="145" y="283" text-anchor="middle" font-size="16" font-weight="700" fill="#ffffff">OpenDOSM</text>
-  <text x="145" y="307" text-anchor="middle" font-size="13" fill="#d1fae5">CPI by state · monthly</text>
+  <rect x="45" y="247" width="180" height="90" rx="12" fill="#10b981"/>
+  <text x="135" y="283" text-anchor="middle" font-size="16" font-weight="700" fill="#ffffff">OpenDOSM</text>
+  <text x="135" y="307" text-anchor="middle" font-size="13" fill="#d1fae5">CPI by state · monthly</text>
 
-  <rect x="50" y="357" width="190" height="90" rx="12" fill="#f59e0b"/>
-  <text x="145" y="393" text-anchor="middle" font-size="16" font-weight="700" fill="#ffffff">Bank Negara Malaysia</text>
-  <text x="145" y="417" text-anchor="middle" font-size="13" fill="#fef3c7">exchange rates · daily</text>
+  <rect x="45" y="357" width="180" height="90" rx="12" fill="#f59e0b"/>
+  <text x="135" y="393" text-anchor="middle" font-size="15" font-weight="700" fill="#ffffff">Bank Negara Malaysia</text>
+  <text x="135" y="417" text-anchor="middle" font-size="13" fill="#fef3c7">exchange rates · daily</text>
 
   <!-- Sources to Land -->
-  <path d="M240,182 H290 M240,292 H290 M240,402 H290" stroke="#334155" stroke-width="2" fill="none"/>
-  <path d="M290,182 V402" stroke="#334155" stroke-width="2" fill="none"/>
-  <path d="M290,182 H340" stroke="#334155" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+  <path d="M225,182 H260 M225,292 H260 M225,402 H260" stroke="#334155" stroke-width="2" fill="none"/>
+  <path d="M260,182 V402" stroke="#334155" stroke-width="2" fill="none"/>
+  <path d="M260,182 H310" stroke="#334155" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
 
-  <!-- Dagster container -->
-  <rect x="310" y="90" width="470" height="430" rx="16" fill="#f5f3ff" stroke="#8b5cf6" stroke-width="2"/>
-  <text x="330" y="118" font-size="14" font-weight="700" fill="#6d28d9">DAGSTER · schedules, retries, alerts</text>
+  <!-- ============ Dagster ============ -->
+  <rect x="280" y="90" width="480" height="550" rx="16" fill="#f5f3ff" stroke="#8b5cf6" stroke-width="2"/>
+  <text x="300" y="118" font-size="14" font-weight="700" fill="#6d28d9">DAGSTER · one asset graph: schedules, retries, alerts</text>
 
-  <rect x="340" y="150" width="200" height="64" rx="10" fill="#ffffff" stroke="#8b5cf6" stroke-width="2"/>
-  <text x="440" y="178" text-anchor="middle" font-size="15" font-weight="700" fill="#4c1d95">Land</text>
-  <text x="440" y="198" text-anchor="middle" font-size="12" fill="#6b7280">fetch · raw JSON on disk</text>
+  <rect x="310" y="150" width="200" height="64" rx="10" fill="#ffffff" stroke="#8b5cf6" stroke-width="2"/>
+  <text x="410" y="178" text-anchor="middle" font-size="15" font-weight="700" fill="#4c1d95">Land</text>
+  <text x="410" y="198" text-anchor="middle" font-size="12" fill="#6b7280">fetch · raw JSON on disk</text>
 
-  <rect x="590" y="150" width="170" height="54" rx="10" fill="#ffffff" stroke="#8b5cf6" stroke-width="2"/>
-  <text x="675" y="173" text-anchor="middle" font-size="14" font-weight="700" fill="#4c1d95">Daily monitor</text>
-  <text x="675" y="191" text-anchor="middle" font-size="12" fill="#6b7280">09:00 KL, no ingestion</text>
+  <rect x="570" y="150" width="170" height="54" rx="10" fill="#ffffff" stroke="#8b5cf6" stroke-width="2"/>
+  <text x="655" y="173" text-anchor="middle" font-size="14" font-weight="700" fill="#4c1d95">Daily monitor</text>
+  <text x="655" y="191" text-anchor="middle" font-size="12" fill="#6b7280">09:00 KL, no ingestion</text>
 
-  <rect x="590" y="250" width="170" height="64" rx="10" fill="#ffffff" stroke="#8b5cf6" stroke-width="2"/>
-  <text x="675" y="278" text-anchor="middle" font-size="15" font-weight="700" fill="#4c1d95">Freshness</text>
-  <text x="675" y="298" text-anchor="middle" font-size="12" fill="#6b7280">after load and daily</text>
+  <rect x="570" y="250" width="170" height="64" rx="10" fill="#ffffff" stroke="#8b5cf6" stroke-width="2"/>
+  <text x="655" y="278" text-anchor="middle" font-size="15" font-weight="700" fill="#4c1d95">Freshness</text>
+  <text x="655" y="298" text-anchor="middle" font-size="12" fill="#6b7280">after load and daily</text>
 
-  <polygon points="440,245 550,300 440,355 330,300" fill="#ede9fe" stroke="#7c3aed" stroke-width="2"/>
-  <text x="440" y="291" text-anchor="middle" font-size="14" font-weight="700" fill="#4c1d95">Quality gate</text>
-  <text x="440" y="309" text-anchor="middle" font-size="11" fill="#6b7280">ERROR blocks</text>
-  <text x="440" y="323" text-anchor="middle" font-size="11" fill="#6b7280">WARN reports</text>
+  <polygon points="410,245 520,300 410,355 300,300" fill="#ede9fe" stroke="#7c3aed" stroke-width="2"/>
+  <text x="410" y="291" text-anchor="middle" font-size="14" font-weight="700" fill="#4c1d95">Quality gate</text>
+  <text x="410" y="309" text-anchor="middle" font-size="11" fill="#6b7280">ERROR blocks</text>
+  <text x="410" y="323" text-anchor="middle" font-size="11" fill="#6b7280">WARN reports</text>
 
-  <rect x="340" y="400" width="200" height="64" rx="10" fill="#ffffff" stroke="#8b5cf6" stroke-width="2"/>
-  <text x="440" y="428" text-anchor="middle" font-size="15" font-weight="700" fill="#4c1d95">Load</text>
-  <text x="440" y="448" text-anchor="middle" font-size="12" fill="#6b7280">idempotent upsert</text>
+  <rect x="310" y="400" width="200" height="64" rx="10" fill="#ffffff" stroke="#8b5cf6" stroke-width="2"/>
+  <text x="410" y="428" text-anchor="middle" font-size="15" font-weight="700" fill="#4c1d95">Load</text>
+  <text x="410" y="448" text-anchor="middle" font-size="12" fill="#6b7280">idempotent upsert</text>
+
+  <!-- dbt runs inside the same Dagster run (DECISIONS.md #51) -->
+  <rect x="310" y="520" width="200" height="80" rx="10" fill="#fff7ed" stroke="#ea580c" stroke-width="2"/>
+  <text x="410" y="546" text-anchor="middle" font-size="15" font-weight="700" fill="#9a3412">dbt build</text>
+  <text x="410" y="566" text-anchor="middle" font-size="12" fill="#6b7280">same run, downstream only</text>
+  <text x="410" y="584" text-anchor="middle" font-size="12" fill="#6b7280">dbt tests = asset checks</text>
 
   <!-- Dagster internal flow -->
-  <path d="M440,214 V245" stroke="#334155" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
-  <path d="M440,355 V400" stroke="#334155" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
-  <text x="450" y="382" font-size="12" font-weight="700" fill="#15803d">pass</text>
-  <path d="M675,204 V250" stroke="#7c3aed" stroke-width="2" stroke-dasharray="6,4" fill="none" marker-end="url(#arrow-purple)"/>
+  <path d="M410,214 V245" stroke="#334155" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+  <path d="M410,355 V400" stroke="#334155" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+  <text x="420" y="382" font-size="12" font-weight="700" fill="#15803d">pass</text>
+  <path d="M410,464 V520" stroke="#334155" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+  <text x="420" y="497" font-size="12" font-weight="700" fill="#334155">then</text>
+  <path d="M655,204 V250" stroke="#7c3aed" stroke-width="2" stroke-dasharray="6,4" fill="none" marker-end="url(#arrow-purple)"/>
 
-  <!-- Postgres container -->
-  <rect x="840" y="90" width="330" height="520" rx="16" fill="#f0fdfa" stroke="#0d9488" stroke-width="2"/>
-  <text x="1005" y="120" text-anchor="middle" font-size="14" font-weight="700" fill="#0f766e">POSTGRES</text>
+  <!-- ============ Postgres ============ -->
+  <rect x="800" y="90" width="480" height="530" rx="16" fill="#f0fdfa" stroke="#0d9488" stroke-width="2"/>
+  <text x="820" y="118" font-size="14" font-weight="700" fill="#0f766e">POSTGRES</text>
 
-  <rect x="870" y="200" width="270" height="150" rx="12" fill="#0d9488"/>
-  <text x="1005" y="230" text-anchor="middle" font-size="16" font-weight="700" fill="#ffffff">raw.* tables</text>
-  <text x="1005" y="258" text-anchor="middle" font-size="13" fill="#ccfbf1">fuel_price_weekly</text>
-  <text x="1005" y="280" text-anchor="middle" font-size="13" fill="#ccfbf1">cpi_state_monthly</text>
-  <text x="1005" y="302" text-anchor="middle" font-size="13" fill="#ccfbf1">fx_rate_daily</text>
+  <rect x="830" y="150" width="220" height="150" rx="12" fill="#0d9488"/>
+  <text x="940" y="180" text-anchor="middle" font-size="16" font-weight="700" fill="#ffffff">raw.* tables</text>
+  <text x="940" y="208" text-anchor="middle" font-size="13" fill="#ccfbf1">fuel_price_weekly</text>
+  <text x="940" y="230" text-anchor="middle" font-size="13" fill="#ccfbf1">cpi_state_monthly</text>
+  <text x="940" y="252" text-anchor="middle" font-size="13" fill="#ccfbf1">fx_rate_daily</text>
 
-  <rect x="870" y="400" width="270" height="64" rx="10" fill="#ffffff" stroke="#0d9488" stroke-width="2"/>
-  <text x="1005" y="428" text-anchor="middle" font-size="15" font-weight="700" fill="#0f766e">ops.pipeline_runs</text>
-  <text x="1005" y="448" text-anchor="middle" font-size="12" fill="#6b7280">audit of every attempt</text>
+  <rect x="830" y="320" width="190" height="54" rx="10" fill="#ea580c"/>
+  <text x="925" y="343" text-anchor="middle" font-size="14" font-weight="700" fill="#ffffff">snapshots.*</text>
+  <text x="925" y="362" text-anchor="middle" font-size="12" fill="#ffedd5">every fuel price revision</text>
+  <path d="M925,300 V320" stroke="#334155" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
 
-  <!-- dbt staging views (built) -->
-  <rect x="870" y="520" width="270" height="64" rx="12" fill="#ea580c"/>
-  <text x="1005" y="548" text-anchor="middle" font-size="16" font-weight="700" fill="#ffffff">staging.* views</text>
-  <text x="1005" y="568" text-anchor="middle" font-size="12" fill="#ffedd5">built and tested by dbt</text>
+  <rect x="830" y="410" width="190" height="60" rx="10" fill="#ffffff" stroke="#0d9488" stroke-width="2"/>
+  <text x="925" y="436" text-anchor="middle" font-size="14" font-weight="700" fill="#0f766e">ops.pipeline_runs</text>
+  <text x="925" y="455" text-anchor="middle" font-size="12" fill="#6b7280">audit of every attempt</text>
 
-  <!-- dbt reads raw and builds the views -->
-  <path d="M1140,325 H1155 V552 H1140" stroke="#334155" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
-  <text x="1005" y="496" text-anchor="middle" font-size="12" font-weight="700" fill="#c2410c">dbt: reads raw.*, builds views</text>
+  <!-- the dbt models -->
+  <rect x="1075" y="125" width="190" height="333" rx="14" fill="#fff7ed" stroke="#ea580c" stroke-width="2"/>
+  <text x="1170" y="145" text-anchor="middle" font-size="12" font-weight="700" fill="#c2410c">DBT MODELS</text>
 
+  <rect x="1085" y="155" width="170" height="46" rx="10" fill="#ffffff" stroke="#ea580c" stroke-width="2"/>
+  <text x="1170" y="175" text-anchor="middle" font-size="14" font-weight="700" fill="#9a3412">reference.*</text>
+  <text x="1170" y="192" text-anchor="middle" font-size="12" fill="#6b7280">4 seeds, joined in models</text>
+
+  <rect x="1085" y="221" width="170" height="46" rx="10" fill="#fb923c"/>
+  <text x="1170" y="241" text-anchor="middle" font-size="14" font-weight="700" fill="#ffffff">staging.*</text>
+  <text x="1170" y="258" text-anchor="middle" font-size="12" fill="#fff7ed">3 views</text>
+
+  <rect x="1085" y="287" width="170" height="46" rx="10" fill="#f97316"/>
+  <text x="1170" y="307" text-anchor="middle" font-size="14" font-weight="700" fill="#ffffff">intermediate.*</text>
+  <text x="1170" y="324" text-anchor="middle" font-size="12" fill="#fff7ed">5 views</text>
+
+  <rect x="1085" y="353" width="170" height="90" rx="10" fill="#c2410c"/>
+  <text x="1170" y="377" text-anchor="middle" font-size="15" font-weight="700" fill="#ffffff">marts.*</text>
+  <text x="1170" y="397" text-anchor="middle" font-size="12" fill="#ffedd5">5 dims · 4 facts</text>
+  <text x="1170" y="415" text-anchor="middle" font-size="12" fill="#ffedd5">mart_data_health</text>
+  <text x="1170" y="432" text-anchor="middle" font-size="11" fill="#fed7aa">tables</text>
+
+  <path d="M1050,244 H1085" stroke="#334155" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+  <path d="M1170,267 V287" stroke="#334155" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+  <path d="M1170,333 V353" stroke="#334155" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+  <!-- mart_data_health reads the run log -->
+  <path d="M1020,425 H1085" stroke="#0d9488" stroke-width="2" stroke-dasharray="6,4" fill="none" marker-end="url(#arrow-teal)"/>
+  <text x="1052" y="418" text-anchor="middle" font-size="11" font-weight="700" fill="#0f766e">run log</text>
+
+  <!-- read-only role -->
+  <rect x="1085" y="520" width="170" height="60" rx="10" fill="#ffffff" stroke="#db2777" stroke-width="2"/>
+  <text x="1170" y="545" text-anchor="middle" font-size="14" font-weight="700" fill="#9d174d">dashboard_reader</text>
+  <text x="1170" y="564" text-anchor="middle" font-size="12" fill="#6b7280">SELECT on marts only</text>
+  <path d="M1170,443 V520" stroke="#334155" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+
+  <!-- ============ Dashboard ============ -->
+  <rect x="1085" y="660" width="170" height="70" rx="12" fill="#db2777"/>
+  <text x="1170" y="688" text-anchor="middle" font-size="15" font-weight="700" fill="#ffffff">Streamlit dashboard</text>
+  <text x="1170" y="708" text-anchor="middle" font-size="12" fill="#fce7f3">6 pages · localhost:8501</text>
+  <path d="M1170,580 V660" stroke="#334155" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+  <text x="1180" y="642" font-size="12" font-weight="700" fill="#9d174d">read-only</text>
+
+  <!-- ============ Dagster to Postgres ============ -->
   <!-- Load writes the data (upsert) and the audit row -->
-  <path d="M540,412 H810 V330 H870" stroke="#334155" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
-  <text x="680" y="404" text-anchor="middle" font-size="12" font-weight="700" fill="#334155">upsert</text>
-  <path d="M540,445 H870" stroke="#0d9488" stroke-width="2" stroke-dasharray="6,4" fill="none" marker-end="url(#arrow-teal)"/>
-  <text x="700" y="464" text-anchor="middle" font-size="12" font-weight="700" fill="#0f766e">audit: run closed or failed</text>
+  <path d="M510,412 H775 V230 H830" stroke="#334155" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+  <text x="640" y="404" text-anchor="middle" font-size="12" font-weight="700" fill="#334155">upsert</text>
+  <path d="M510,445 H830" stroke="#0d9488" stroke-width="2" stroke-dasharray="6,4" fill="none" marker-end="url(#arrow-teal)"/>
+  <text x="640" y="464" text-anchor="middle" font-size="12" font-weight="700" fill="#0f766e">audit: run closed or failed</text>
 
-  <!-- Land opens the run row (and marks it failed on error) -->
-  <path d="M540,195 H565 V445" stroke="#0d9488" stroke-width="2" stroke-dasharray="6,4" fill="none"/>
-  <circle cx="565" cy="445" r="3.5" fill="#0d9488"/>
-  <text x="572" y="232" font-size="11" font-weight="700" fill="#0f766e">run opened</text>
+  <!-- Land opens the run row -->
+  <path d="M510,195 H535 V445" stroke="#0d9488" stroke-width="2" stroke-dasharray="6,4" fill="none"/>
+  <circle cx="535" cy="445" r="3.5" fill="#0d9488"/>
+  <text x="542" y="232" font-size="11" font-weight="700" fill="#0f766e">run opened</text>
 
   <!-- Land reads the watermark to decide what to fetch -->
-  <path d="M870,225 H800 V138 H440 V150" stroke="#0d9488" stroke-width="2" stroke-dasharray="6,4" fill="none" marker-end="url(#arrow-teal)"/>
-  <text x="790" y="132" text-anchor="end" font-size="11" font-weight="700" fill="#0f766e">watermark: what to fetch</text>
+  <path d="M830,170 H790 V136 H410 V150" stroke="#0d9488" stroke-width="2" stroke-dasharray="6,4" fill="none" marker-end="url(#arrow-teal)"/>
+  <text x="782" y="131" text-anchor="end" font-size="11" font-weight="700" fill="#0f766e">watermark: what to fetch</text>
 
   <!-- Freshness reads the raw tables -->
-  <path d="M870,282 H760" stroke="#7c3aed" stroke-width="2" stroke-dasharray="6,4" fill="none" marker-end="url(#arrow-purple)"/>
+  <path d="M830,282 H740" stroke="#7c3aed" stroke-width="2" stroke-dasharray="6,4" fill="none" marker-end="url(#arrow-purple)"/>
 
-  <!-- Alerts: a failed run (blocked gate or stale table) triggers the run-failure sensor -->
-  <rect x="340" y="560" width="300" height="56" rx="12" fill="#fee2e2" stroke="#dc2626" stroke-width="2"/>
-  <text x="490" y="584" text-anchor="middle" font-size="15" font-weight="700" fill="#991b1b">Slack or log</text>
-  <text x="490" y="602" text-anchor="middle" font-size="12" fill="#7f1d1d">run-failure sensor alerts</text>
+  <!-- dbt builds the warehouse -->
+  <path d="M510,560 H1050 V450 H1075" stroke="#ea580c" stroke-width="2.5" fill="none" marker-end="url(#arrow-orange)"/>
+  <text x="640" y="552" text-anchor="middle" font-size="12" font-weight="700" fill="#c2410c">builds models and snapshot, runs tests</text>
 
-  <path d="M330,300 H320 V588 H340" stroke="#dc2626" stroke-width="2" stroke-dasharray="6,4" fill="none" marker-end="url(#arrow-red)"/>
-  <text x="328" y="490" font-size="12" font-weight="700" fill="#dc2626">gate fails</text>
-  <path d="M740,314 V588 H640" stroke="#dc2626" stroke-width="2" stroke-dasharray="6,4" fill="none" marker-end="url(#arrow-red)"/>
-  <text x="748" y="540" font-size="12" font-weight="700" fill="#dc2626">stale</text>
+  <!-- ============ Alerts ============ -->
+  <rect x="310" y="690" width="300" height="56" rx="12" fill="#fee2e2" stroke="#dc2626" stroke-width="2"/>
+  <text x="460" y="714" text-anchor="middle" font-size="15" font-weight="700" fill="#991b1b">Slack or log</text>
+  <text x="460" y="732" text-anchor="middle" font-size="12" fill="#7f1d1d">run-failure sensor alerts</text>
 
-  <!-- Planned phases -->
-  <path d="M915,584 V650" stroke="#64748b" stroke-width="2" stroke-dasharray="6,4" fill="none" marker-end="url(#arrow-grey)"/>
-  <rect x="840" y="650" width="150" height="56" rx="12" fill="#f8fafc" stroke="#64748b" stroke-width="2" stroke-dasharray="6,4"/>
-  <text x="915" y="674" text-anchor="middle" font-size="15" font-weight="700" fill="#334155">dbt marts</text>
-  <text x="915" y="692" text-anchor="middle" font-size="12" fill="#64748b">Phase 3, next</text>
+  <path d="M300,300 H292 V718 H310" stroke="#dc2626" stroke-width="2" stroke-dasharray="6,4" fill="none" marker-end="url(#arrow-red)"/>
+  <text x="298" y="660" font-size="12" font-weight="700" fill="#dc2626">gate fails</text>
+  <path d="M440,600 V690" stroke="#dc2626" stroke-width="2" stroke-dasharray="6,4" fill="none" marker-end="url(#arrow-red)"/>
+  <text x="448" y="660" font-size="12" font-weight="700" fill="#dc2626">dbt test fails</text>
+  <path d="M725,314 V718 H610" stroke="#dc2626" stroke-width="2" stroke-dasharray="6,4" fill="none" marker-end="url(#arrow-red)"/>
+  <text x="733" y="660" font-size="12" font-weight="700" fill="#dc2626">stale</text>
 
-  <path d="M990,678 H1010" stroke="#64748b" stroke-width="2" stroke-dasharray="6,4" fill="none" marker-end="url(#arrow-grey)"/>
-  <rect x="1010" y="650" width="160" height="56" rx="12" fill="#f8fafc" stroke="#64748b" stroke-width="2" stroke-dasharray="6,4"/>
-  <text x="1090" y="674" text-anchor="middle" font-size="15" font-weight="700" fill="#334155">Dashboard</text>
-  <text x="1090" y="692" text-anchor="middle" font-size="12" fill="#64748b">Phase 4</text>
+  <!-- ============ Planned ============ -->
+  <path d="M310,588 H240" stroke="#64748b" stroke-width="2" stroke-dasharray="6,4" fill="none" marker-end="url(#arrow-grey)"/>
+  <rect x="40" y="560" width="200" height="56" rx="12" fill="#f8fafc" stroke="#64748b" stroke-width="2" stroke-dasharray="6,4"/>
+  <text x="140" y="584" text-anchor="middle" font-size="15" font-weight="700" fill="#334155">dbt docs site</text>
+  <text x="140" y="602" text-anchor="middle" font-size="12" fill="#64748b">GitHub Pages · planned</text>
 
   <!-- Legend -->
   <g font-size="12" fill="#334155">
-    <path d="M40,750 H80" stroke="#334155" stroke-width="2" marker-end="url(#arrow)"/>
-    <text x="90" y="754">data flow</text>
-    <path d="M190,750 H230" stroke="#0d9488" stroke-width="2" stroke-dasharray="6,4"/>
-    <text x="240" y="754">audit and watermark</text>
-    <path d="M400,750 H440" stroke="#7c3aed" stroke-width="2" stroke-dasharray="6,4"/>
-    <text x="450" y="754">monitoring</text>
-    <path d="M550,750 H590" stroke="#dc2626" stroke-width="2" stroke-dasharray="6,4"/>
-    <text x="600" y="754">alerting (via failed run)</text>
-    <path d="M790,750 H830" stroke="#64748b" stroke-width="2" stroke-dasharray="6,4"/>
-    <text x="840" y="754">planned, not built yet</text>
+    <path d="M40,800 H80" stroke="#334155" stroke-width="2" marker-end="url(#arrow)"/>
+    <text x="90" y="804">data flow</text>
+    <path d="M180,800 H220" stroke="#ea580c" stroke-width="2.5" marker-end="url(#arrow-orange)"/>
+    <text x="230" y="804">dbt builds</text>
+    <path d="M325,800 H365" stroke="#0d9488" stroke-width="2" stroke-dasharray="6,4"/>
+    <text x="375" y="804">audit and watermark</text>
+    <path d="M530,800 H570" stroke="#7c3aed" stroke-width="2" stroke-dasharray="6,4"/>
+    <text x="580" y="804">monitoring</text>
+    <path d="M675,800 H715" stroke="#dc2626" stroke-width="2" stroke-dasharray="6,4"/>
+    <text x="725" y="804">alerting (via failed run)</text>
+    <path d="M905,800 H945" stroke="#64748b" stroke-width="2" stroke-dasharray="6,4"/>
+    <text x="955" y="804">planned, not built yet</text>
+    <rect x="1120" y="792" width="16" height="16" rx="3" fill="#ea580c"/>
+    <text x="1144" y="804">built by dbt</text>
   </g>
 </svg>

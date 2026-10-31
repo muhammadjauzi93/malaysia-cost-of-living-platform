@@ -63,6 +63,7 @@ page = st.navigation(
             "app_pages/cost_of_living.py", title="Cost of living", icon=":material/shopping_cart:"
         ),
         st.Page("app_pages/about.py", title="About the data", icon=":material/fact_check:"),
+        st.Page("app_pages/glossary.py", title="Glossary", icon=":material/menu_book:"),
     ],
     position="top",
 )

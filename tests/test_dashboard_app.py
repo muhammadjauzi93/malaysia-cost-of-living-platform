@@ -17,7 +17,7 @@ from tests import dashboard_fixtures as fx
 
 # Located, not imported: importing app.py would run the whole Streamlit script.
 APP_SCRIPT = find_spec("col_pipeline.dashboard.app").origin
-PAGES = ["overview", "states", "fuel", "cost_of_living", "about"]
+PAGES = ["overview", "states", "fuel", "cost_of_living", "about", "glossary"]
 
 
 @pytest.fixture(autouse=True)
@@ -164,3 +164,32 @@ def test_choosing_diesel_shows_the_open_data_quality_warning(monkeypatch):
     app.pills(key="fuels").set_value(["ron95", "diesel"]).run()
     assert not app.exception
     assert any(w.proto.title == "Diesel under review" for w in app.warning)
+
+
+# ---------- glossary page ----------
+
+
+def test_glossary_lists_acronyms_and_every_pages_numbers(monkeypatch):
+    use_marts(monkeypatch, fx.marts())
+    app = open_page(run_app(), "glossary")
+    assert [h.value for h in app.header] == [
+        "Acronyms, sources and units",
+        "The numbers, page by page",
+    ]
+    assert [s.value for s in app.subheader] == [
+        "The answer",
+        "States",
+        "Fuel prices",
+        "Cost of living",
+        "About the data",
+    ]
+
+
+def test_glossary_search_narrows_the_entries_and_says_when_nothing_matches(monkeypatch):
+    use_marts(monkeypatch, fx.marts())
+    app = open_page(run_app(), "glossary")
+    app.text_input(key="glossary_query").input("percentage points").run()
+    assert any(m.value.startswith("**pp**") for m in app.markdown)
+    assert not any(m.value.startswith("**CPI**") for m in app.markdown)
+    app.text_input(key="glossary_query").input("zzz").run()
+    assert "No glossary entry" in app.info[0].value

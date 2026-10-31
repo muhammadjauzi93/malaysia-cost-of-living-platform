@@ -897,3 +897,29 @@ in line with turning off Streamlit's usage statistics (#61).
   says so. A longer real history will make it more useful.
 - Diesel appears only on the fuel page, behind a warning about its open findings (#53a). It is not part
   of the answer.
+
+### 64. A glossary page, with its text in a tested module
+
+**Decision (owner, 31 Oct 2026).** A sixth page, after About the data, explains every acronym on the
+dashboard and what each number means and why it matters to the question, grouped by the page it
+appears on, with a search box. The owner supplied the expansions of SKDS (Sistem Kawalan Diesel
+Bersubsidi), SKPS (Sistem Kawalan Petrol Bersubsidi) and BUDI95 (the targeted RON95 subsidy
+programme under the BUDI MADANI initiative); the repository did not record them before.
+
+**Why a page, not only tooltips.** The pages already carry short `help` text on their metrics, but a
+viewer meeting "pp", "COICOP" or "awaiting CPI" for the first time needs the reason as well as the
+definition, and a tooltip has no room for it. The glossary repeats the rules the pages follow (day
+weighting #46, national fuel #33, partial months #42, the half-sen tolerance, the headline fuel read
+from the mart #41) in one place, written for a reader rather than a reviewer.
+
+**Code shape.** The text is plain data in `glossary.py`, and the page only renders it; it reads no
+tables. Tests check that every entry is complete, that no term is listed twice, that the pages it
+names are the app's pages, and that every upper-case acronym in the pages' and charts' strings and
+in the fuel names has an entry. A new page that shows an unexplained acronym fails CI.
+
+**Trade-offs.**
+- The definitions are a second copy of what the pages and `analysis.py` do, so they can drift. The
+  acronym test catches a new term, not a changed meaning; changing what a number means needs its
+  glossary entry changed by hand, and the module's docstring says so.
+- Lower-case units (pp, sen, r) and spelled-out phrases cannot be found by the scan; a short fixed
+  list in the tests covers the ones on screen today.

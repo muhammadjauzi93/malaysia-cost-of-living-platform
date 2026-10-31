@@ -1,7 +1,7 @@
 """Altair charts for the dashboard. Each function takes DataFrames and returns a chart spec, so the
 labelling rules are tested on the spec without a browser (tests/test_dashboard_charts.py).
 
-Rules every chart keeps (docs/PHASE4-HANDOVER.md section 4):
+Rules every chart keeps (DECISIONS.md #33, #42 and #63):
 - a partial fuel month is marked on the chart itself, not only in a table;
 - a month awaiting CPI is labelled "awaiting CPI", never drawn as zero;
 - the fuel price is labelled national wherever it appears next to a state.

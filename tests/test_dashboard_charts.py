@@ -1,4 +1,4 @@
-"""The labelling rules, checked on the chart specs (docs/PHASE4-HANDOVER.md section 4).
+"""The labelling rules, checked on the chart specs (DECISIONS.md #33, #42, #63).
 
 A partial month is marked on the chart, an awaiting month is labelled and never drawn as a bar,
 the fuel price is labelled national, and charts drawn one above the other share their months.

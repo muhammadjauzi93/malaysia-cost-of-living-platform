@@ -929,3 +929,65 @@ in the fuel names has an entry. A new page that shows an unexplained acronym fai
   glossary entry changed by hand, and the module's docstring says so.
 - Lower-case units (pp, sen, r) and spelled-out phrases cannot be found by the scan; a short fixed
   list in the tests covers the ones on screen today.
+
+### 65. The answer compares the same month, not the month after (revises #63)
+
+**Decision (owner, 31 Oct 2026).** The answer page and the states page set each month's fuel
+change beside the *same* month's transport CPI change. #63 used last month's fuel change. The
+dashboard also reports what last month's change adds once this month's is counted, so the choice
+is checked on screen every time the page loads.
+
+**Why.** The write-up (`docs/writeup/`) tested both on the real data. Under the 2017-21 weekly
+float, the same month's RON95 change explains 96% of the monthly variation in transport CPI (0.53%
+per 1%), and last month's change adds 0.004 once it is in the regression. On its own the lag
+looked meaningful (+1.23 pp after a rise, full history) only because fuel changes come in runs:
+a rise was followed by another rise 11 times out of 20. CPI prices are collected through the
+month, so a weekly price change is in the month it happens. #63 assumed a delay without
+measuring one; on the real data the same-month gap is +1.96 pp over the full history.
+
+**Also on the page.** Since 30 Sep 2025 the `ron95` series is the unsubsidised price, and most
+households pay the BUDI95 price instead. The calculation note on the answer page now says so,
+reading the BUDI95 price and start date from `fct_fuel_prices`, not from the code. The headline
+fuel in `fct_fuel_vs_transport_cpi` is unchanged; choosing what it should be after September 2025
+is a model decision left open.
+
+**Code shape.** `lag_pairs` became `change_pairs`; `PassThrough` gained
+`next_month_pp_per_10_sen`, a least-squares fit of CPI on both months' changes. The fixture's March
+and April CPI were swapped so the hand-checked rise is felt in the same month, keeping its 0.4%
+and every May-based test; the new values are worked out in the fixture's docstring. The glossary's
+"one-month lag" entry is now "Same-month comparison", with the evidence.
+
+**Trade-offs.**
+- A same-month comparison cannot catch an effect that genuinely arrives later (fares revised
+  quarterly, say). The on-screen next-month figure is the guard: if it grows, the choice is wrong.
+- The `fuel_mom_change_prev_month_myr` column stays in the mart; it now feeds only that check.
+
+### 66. How v1.0.0 ships: the docs site, the screenshot and the write-up
+
+**The dbt docs site (#59).** `.github/workflows/docs.yml` runs on every push to `main`. It builds
+the warehouse on a throwaway Postgres from the synthetic sample, exactly as the CI dbt job does,
+then refuses to publish unless every row counted by `mart_data_health` is synthetic. dbt's
+catalog holds names, types and descriptions rather than rows, so the guard is belt and braces, but
+it turns "never built from real data" into a check instead of a promise. The site is one file,
+`dbt docs generate --static`, deployed with the official Pages actions. The owner must set the
+repository's Pages source to GitHub Actions once; until then the deploy job fails and nothing is
+published.
+
+**The screenshot (#56).** `docs/dashboard.png` is the answer page on the owner's real database,
+taken with Playwright driving the installed Edge (headless Edge on its own captured Streamlit
+before it had rendered). Real data, unlike the docs site: it is public data under CC BY 4.0, and
+the README and the write-up already quote the same figures. It is retaken by hand when the page
+changes; nothing checks that it is current.
+
+**The write-up.** `docs/writeup/README.md` answers the project question from the real data, and
+`docs/writeup/analysis.py` recomputes every number and chart in it. matplotlib is not a project
+dependency; the script runs with `uv run --with matplotlib`, so the lockfile does not grow for a
+document. The analysis is what found the error recorded in #65.
+
+**Version.** The package version moves from 0.1.0, which it never left, to 1.0.0, matching the tag.
+
+**Trade-offs.**
+- The docs workflow repeats the CI dbt job's setup steps rather than sharing them. Duplication in
+  two workflows was cheaper than a reusable workflow for six commands.
+- The write-up's numbers are as of the data loaded on 31 Oct 2026. Re-running the script on later
+  data changes them; the text is not regenerated, by design: it is an analysis, not a dashboard.

@@ -46,7 +46,17 @@ GROUPS = {
     "marts": "warehouse_marts",
     "reference": "warehouse_reference",
     "snapshots": "warehouse_snapshots",
+    "ops": "pipeline_metadata",
 }
+
+# ops.pipeline_runs is a dbt source, read by the data health mart (DECISIONS.md #62). Every
+# ingestion run writes it, so no single asset produces it: it is declared as an external table,
+# under the key dbt gives the source, instead of appearing unexplained in the "default" group.
+RUN_LOG = dg.AssetSpec(
+    key=dg.AssetKey(["ops", "pipeline_runs"]),
+    group_name=GROUPS["ops"],
+    description="One row per ingestion run, written by the pipeline (sql/schema.sql).",
+)
 
 
 class ManifestMissingError(RuntimeError):

@@ -59,3 +59,11 @@ def test_profile_never_contains_a_literal_password():
     profile = (DBT_DIR / "profiles.yml").read_text(encoding="utf-8")
     assert "env_var('POSTGRES_PASSWORD')" in profile
     assert "change_me" not in profile
+
+
+def test_data_health_mart_counts_the_label_load_sample_writes():
+    # The dashboard's synthetic-data banner depends on these two strings being the same.
+    from col_pipeline.sample_data import SAMPLE_SOURCE_LABEL
+
+    sql = (MODELS_DIR / "marts" / "mart_data_health.sql").read_text(encoding="utf-8")
+    assert f"source_system = '{SAMPLE_SOURCE_LABEL}'" in sql

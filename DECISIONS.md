@@ -1,8 +1,9 @@
 # Design decisions
 
 Short records of choices made, the alternatives, and what was traded away.
-Newest at the bottom. Phase 1 = fuel price ingestion, Phase 2 = orchestration and quality,
-Phase 3 = the dbt warehouse (#30 onwards).
+Newest at the bottom. Phase 1 = fuel price ingestion (#1 to #7), then the portability revision
+(#8 to #13), Phase 2 = orchestration and quality (#14 to #29), Phase 3 = the dbt warehouse (#30 to
+#50) and its orchestration (#51 to #54), Phase 4 = the dashboard and release (#55 onwards).
 
 ---
 
@@ -336,11 +337,12 @@ Installing from git needs `git` on the PATH, which this project already requires
 
 ### 37. Intermediate models are views; marts will be tables
 
-Intermediate models sit between staging and the marts and only exist to feed them, so nothing
-reads them directly. A view costs no storage and is always current. **Trade-off:** each query
-recomputes the joins and windows. The CPI pivot reads 8,064 raw rows and returns 576 (16 states by 36 months), which is milliseconds. When the mart
-tables are built, the cost is paid once per run rather than per query, which is why the marts
-are tables. Revisit if an intermediate model ever scans millions of rows.
+Intermediate models sit between staging and the marts and only exist to feed them, so nothing reads
+them directly. A view costs no storage and is always current. **Trade-off:** each query recomputes
+the joins and windows. The CPI pivot reads 8,064 raw rows and returns 576 (16 states by 36 months),
+which is milliseconds. When the mart tables are built, the cost is paid once per run rather than per
+query, which is why the marts are tables. Revisit if an intermediate model ever scans millions of
+rows.
 
 ### 38. CPI is pivoted to one row per state and month, keeping three divisions
 
@@ -368,10 +370,11 @@ needs its own assertion.
 
 `LAG` is partitioned by `fuel_type`, so a fuel that appears late (a new subsidy scheme) starts with
 no previous value. Taking the previous row of the table instead would compare RON95 with diesel the
-first time a new fuel appears. (Monthly averages were later reworked, see #46.) Monthly averages carry `weekly_observations`: a full month has four
-or five announcements, so the current month is visibly partial until it closes. **Trade-off:** the
-dashboard must show or exclude partial months explicitly; it cannot assume every month is complete.
-A warning test flags a gap of more than two weeks, which usually means a missed week in the source.
+first time a new fuel appears. (Monthly averages were later reworked, see #46.) Monthly averages
+carry `weekly_observations`: a full month has four or five announcements, so the current month is
+visibly partial until it closes. **Trade-off:** the dashboard must show or exclude partial months
+explicitly; it cannot assume every month is complete. A warning test flags a gap of more than two
+weeks, which usually means a missed week in the source.
 
 ### 41. The headline fuel is RON95, held in a variable
 
@@ -387,10 +390,10 @@ households paid after the subsidy change needs checking; the variable makes eith
 The current Kuala Lumpur month is `fuel_month_status = 'partial'`; every earlier month is
 `complete`. Counting weekly announcements would have been the alternative, but real data already
 shows gaps of more than two weeks (20 rows in the first real run: the 2018 schedule change, see #46
-and #47), and a count would label any such old month partial. Months without published CPI are a separate status, `awaiting_cpi`, because a month
-can be complete for fuel while its CPI is still weeks away. **Trade-off:** both labels are
-correct as of `built_at`, the last build. If dbt does not run after a month ends, last month stays
-labelled partial until the next build.
+and #47), and a count would label any such old month partial. Months without published CPI are a
+separate status, `awaiting_cpi`, because a month can be complete for fuel while its CPI is still
+weeks away. **Trade-off:** both labels are correct as of `built_at`, the last build. If dbt does not
+run after a month ends, last month stays labelled partial until the next build.
 
 ### 43. Reference lists are seeds; fuel types come from the data
 
@@ -411,19 +414,19 @@ with Postgres row versions), with no keys gained or lost. CI re-runs the model o
 so its uniqueness tests run on the incremental path. **Trade-off:** a revision older than 21 days
 does not reach the mart until `--full-refresh`. Shown by test: a price corrected 60 days back stayed
 stale through an incremental run and was fixed by a full refresh. The snapshot (next step) keeps the
-history of such revisions. The other facts are small and rebuilt in full, which keeps their month-on-
-month and year-on-year windows simple.
+history of such revisions. The other facts are small and rebuilt in full, which keeps their
+month-on- month and year-on-year windows simple.
 
 ### 45. The fuel-vs-CPI mart is a complete month-by-state grid
 
 `fct_fuel_vs_transport_cpi` starts from every month crossed with every state, then left-joins fuel
 and CPI. A month with no fuel or no CPI yet is a row with nulls, never a missing row, so every `LAG`
 compares with exactly the previous calendar month. The national fuel price sits on every state's
-row, with last month's change beside this month's transport CPI change, which is the comparison
-the project question asks for. **Found by sabotage:** renaming Pulau Pinang in the source left this
-mart green (the state's rows simply showed `awaiting_cpi` forever); only another model's test failed.
-A test now asserts that in every month either all states have CPI or none do, so the mart catches
-it on its own.
+row, with last month's change beside this month's transport CPI change, which is the comparison the
+project question asks for. **Found by sabotage:** renaming Pulau Pinang in the source left this mart
+green (the state's rows simply showed `awaiting_cpi` forever); only another model's test failed. A
+test now asserts that in every month either all states have CPI or none do, so the mart catches it
+on its own.
 
 ### 46. Monthly fuel prices are weighted by the days each price was in effect
 
@@ -448,9 +451,9 @@ perfectly regular and could never have exposed this. Verified that the tests can
 RM3.11 fails with "actual differs from expected".
 
 **Trade-off.** A price carried forward is an assumption: if the source silently skips a week, the
-model keeps the old price rather than showing a gap. Source freshness (10 days) and the gap
-warning cover that. The view expands every price to daily rows (tens of thousands for the full history), which
-is trivial here; at a much larger scale it would be materialised as a table.
+model keeps the old price rather than showing a gap. Source freshness (10 days) and the gap warning
+cover that. The view expands every price to daily rows (tens of thousands for the full history),
+which is trivial here; at a much larger scale it would be materialised as a table.
 
 ### 47. Reviewed fuel events are a seed; warnings fire only for something new
 
@@ -599,10 +602,10 @@ already reviewed as a schedule change, so the run is accepted. The same mechanis
 future legitimate match, and the review stays in version control.
 
 **Severity: error, but it does not stop the dashboard.** A failing dbt test fails the Dagster run,
-which sends the failure alert. The assets still materialise before checks run, so the mart refreshes.
-An end-to-end test proves both: the run fails, and `marts/fct_fuel_vs_transport_cpi` is rebuilt in
-the same run. A copied series is not published as a real value, but one bad series must not freeze
-the dashboard.
+which sends the failure alert. The assets still materialise before checks run, so the mart
+refreshes. An end-to-end test proves both: the run fails, and `marts/fct_fuel_vs_transport_cpi` is
+rebuilt in the same run. A copied series is not published as a real value, but one bad series must
+not freeze the dashboard.
 
 **What it was tested against.**
 - Clean synthetic sample: the rule stays silent (217 of 217).
@@ -685,3 +688,244 @@ who does not use uv gets, and it must stay green.
 **Not verified.** The Windows pip job runs on GitHub and has not been run here. The Ubuntu and
 Windows pip environments resolve the same packages, so the result should match, but the CI run is
 the test.
+
+---
+
+## Phase 4: the dashboard and the release
+
+Entries 55 to 60 are the owner's answers to the six questions Phase 4 opened with, recorded on
+31 Oct 2026 before any dashboard code was written.
+
+### 55. The dashboard is Streamlit
+
+**Decision.** Build the dashboard in Streamlit, in Python, inside this repository.
+
+**Why.** It is the same language and toolchain as the pipeline, so the query functions are tested
+with the same pytest suite and the same CI jobs. A reviewer runs it with one command after the
+demo data is loaded.
+
+**Alternatives rejected.** Evidence builds a good static site, but it adds a Node toolchain to a
+Python project. Power BI is the owner's work tool, but a reviewer without it cannot open the
+dashboard, which defeats the point of a portfolio project you can run.
+
+**Trade-off.** Streamlit and a charting library become runtime dependencies. They are resolved
+without a lockfile on the pip path, so that job must be checked when they are added (#54).
+
+### 56. The dashboard reads the local Postgres marts; nothing is hosted in v1.0.0
+
+**Decision.** The app connects to the local Docker Postgres and reads the `marts` schema. The
+README shows a screenshot. No public demo is hosted.
+
+**Why.** A hosted app cannot reach a local database, so a public demo would need an exported
+snapshot of the marts, a host, and a decision on which data to republish. None of that is needed
+to answer the central question, and hosting nothing keeps the running cost at RM0.
+
+**Trade-off.** A visitor sees a screenshot, not a live page, unless they clone and run it. A
+static snapshot export stays a possible later step, and it would publish synthetic data only
+unless the owner decides otherwise.
+
+### 57. Data health gets its own mart, the one dbt change in Phase 4
+
+**Decision.** Add `marts.mart_data_health`, built from pipeline metadata (`ops.pipeline_runs` and
+the freshness and rule results), and a dashboard page that reads it.
+
+**Why.** The owner wants the dashboard to show whether the data can be trusted, including the open
+identical-price runs (#53a). The dashboard may read only `marts`, so reading `ops` directly would
+break that rule. A mart keeps the rule, and the data gets dbt tests like every other mart.
+
+**Trade-off.** Phase 4 otherwise changes no models. This one is allowed on purpose and is limited to
+the one mart, its tests and the regenerated lineage diagram. Its exact inputs are settled when the
+mart is built (#62): run history is in `ops.pipeline_runs`, but dbt's freshness results are written
+to a file, not the database, so how they reach a mart is still open.
+
+### 58. The app connects as a read-only `dashboard_reader` role
+
+**Decision.** A `tasks.py` task creates a `dashboard_reader` role with `USAGE` on `marts` and
+`SELECT` on its tables only. The dashboard connects as that role.
+
+**Why.** The marts-only rule is then enforced by Postgres, not only by code review. A test checks
+that a write fails and that reading another schema fails.
+
+**Trade-off.** One more set of credentials in `.env`, and one more setup step in the demo path.
+Tables that dbt rebuilds must keep the grant, which creating the role has to handle (#61) (for
+example with default privileges or a dbt grant), and a test must prove it survives a rebuild.
+
+### 59. The dbt docs site is published to GitHub Pages
+
+**Decision.** Publish the generated dbt docs site to GitHub Pages and link it from the README.
+
+**Why.** A reviewer can click through the models, columns, tests and lineage without cloning
+anything. The site holds model descriptions and compiled SQL, which are public in the repository
+already.
+
+**Trade-off.** A Pages workflow to write and keep green, and the owner must turn on Pages in the
+repository settings. The site must be built from the synthetic sample in CI, never from the
+owner's real database. Publishing must check that the catalog holds no real data.
+
+### 60. v1.0.0 scope
+
+**Decision.** v1.0.0 is the dashboard, measured README numbers, the lineage diagram, the dbt docs
+site, DECISIONS for every phase, and launch posts.
+
+**Out of scope, on purpose.** Hosting the dashboard, an API, forecasting or ML, fixing the
+identical-price rule's review gap, and resolving the open real-data runs (#53a). These are listed
+in the README as known issues or next steps, not hidden.
+
+### 61. How the read-only role is built and kept
+
+**Decision.** `python tasks.py create-dashboard-role` creates `dashboard_reader` with `USAGE` on
+`marts`, `SELECT` on its tables, and a default privilege so that tables dbt creates there later
+are readable too. It is a separate task, safe to repeat, and not part of `sql/schema.sql`.
+
+**Why default privileges, not dbt's `grants` config.** dbt rebuilds every mart as a new table, and
+a grant on the old table goes with it. dbt's `grants` would re-apply the grant on every build, but
+it fails on any database where the role does not exist, which is CI, a fresh clone, and every
+reviewer's first build. It would also change the dbt project, which Phase 4 avoids. The default
+privilege is set once, by the user that runs dbt, and survives every rebuild. A test runs
+`dbt run` on the mart and reads it again as the role. With the default privilege removed, that
+test fails with `permission denied for table fct_fuel_vs_transport_cpi`. That failure was checked
+on purpose, so the test is known to catch the problem.
+
+**Why not `schema.sql`.** Docker runs it only on a brand-new volume, and creating the role there
+would mean passing a second password into the container. A task also lets a repeat reset the
+password from `.env`.
+
+**Read-only three times over.** The role can only `SELECT`. The role also has
+`default_transaction_read_only = on`. The app opens every session read-only as well. The
+dashboard's code reads through one function that accepts only a bare table name and always
+adds the `marts.` prefix, so there is no way to pass SQL or another schema.
+
+**No fallback to the owner's password.** If `DASHBOARD_DB_PASSWORD` is missing, the app shows an
+error. Falling back to `POSTGRES_PASSWORD` would make it work while silently bypassing the role.
+
+**Trade-offs.**
+- Dropping the `marts` schema also drops its default privilege. A rebuild does not drop the
+  schema, but `reset-db` and the Dagster integration tests do, so the task must run again after
+  them. The README says so, and in CI the role tests run before the tests that drop schemas.
+- Postgres roles belong to the whole server, not one database. So the tests use their own role,
+  `dashboard_reader_test`, rather than resetting the real role's password, which would also
+  change it for every other database on that server.
+
+**Other choices made here.**
+- Charts will use Altair, which Streamlit already installs, so there is no second charting
+  dependency.
+- `.streamlit/config.toml` turns off Streamlit's usage statistics and its first-run email prompt.
+- Adding Streamlit changed no pinned version in `uv.lock`; protobuf stays at 6.33.6 (#54).
+
+**Not verified.** The CI steps have not run on GitHub yet. The dashboard has not been opened in a
+browser; a Streamlit test harness ran the script against a scratch warehouse, and the
+`dashboard` task's server answered its health check.
+
+### 62. The synthetic-data label comes from a first version of the data-health mart
+
+**Problem.** The dashboard must label synthetic data, and it may read only `marts`. No mart carried
+the `source` column, so the label could not be produced without a model change.
+
+**Decision (owner, 31 Oct 2026).** Build `marts.mart_data_health` now, ahead of the data-health
+page, rather than adding `source` to existing marts. One row per source, always all three: rows,
+synthetic rows, data date range, and the pipeline's last run from `ops.pipeline_runs`, which
+becomes a dbt source. The dashboard shows a synthetic-data banner whenever any source has
+synthetic rows.
+
+**Why this mart and not a `source` column on the facts.** It changes no existing mart, and it is
+the mart #57 already approved. A banner per source is also what a viewer needs; a per-row label
+would only matter if real and synthetic rows were mixed, which `load-sample` prevents by refusing
+to run on a database that already holds rows.
+
+**What it deliberately leaves out.**
+- **The open identical-price runs.** `int_fuel_identical_runs` has a singular test that fails on the
+  real data by design (#53a). `dbt build` skips every model downstream of a failing test, so a mart
+  reading that model would be skipped on exactly the data that needs the warning. How the runs reach
+  the dashboard is decided with the data-health page.
+- **A freshness verdict.** dbt writes freshness results to a file, not the database (#57). The mart
+  gives the newest data date; the page can show its age, but repeating the limits from
+  `_sources.yml` in SQL would make two copies to keep in step. That is also left to the data-health
+  page.
+
+**Trade-off.** `load-sample` writes no pipeline runs, so on the demo data the last-run columns are
+empty. That is true, and the page says "never run by the pipeline" rather than hiding it. The
+label string `synthetic-sample` now lives in Python and in SQL; a test fails if they differ, and
+the mart's unit test fails if the SQL label is changed.
+
+**One orchestration change it forced.** A new dbt source becomes a Dagster dependency, and
+`ops.pipeline_runs` appeared as an unexplained asset in the `default` group, which an existing
+test caught. It is now declared as an external table in a `pipeline_metadata` group
+(`orchestration/dbt.py`). Nothing materialises it; every ingestion job already refreshes the
+health mart because the mart reads all three staging models. Tests pin both facts.
+
+### 63. The dashboard: five pages, a computed answer, and labels on the charts themselves
+
+**Decision (owner, 31 Oct 2026).** Five pages with top navigation: the answer, states, fuel prices,
+cost of living, and about the data. The plan asked for three; cost of living and about the data
+were added because they put the answer in context, and they need no model change.
+
+**The answer is computed, never written.** The first page states one sentence ("In the N months
+after RON95 rose, transport CPI changed by X% on average, against Y% after months when the price
+held") built from the numbers, with N always shown, a correlation and slope beside it, and the words
+"an association across few months, not proof of cause". On the synthetic sample the finding is
+noise, and the page says so through the synthetic-data banner; on real data it will say whatever the
+data says. Writing a conclusion into the page would have been easier to make impressive and
+impossible to trust.
+
+**How the comparison is made.**
+- Last month's change in the day-weighted RON95 average (#46) beside this month's transport CPI
+  change.
+- A monthly average that moved by less than half a sen counts as no change: day weighting leaves
+  dust in the fourth decimal of a price that held all month.
+- Months awaiting CPI drop out of every comparison and ranking. They are labelled on the charts,
+  never drawn as zero.
+- "The average state" is a simple mean of the 16 states. No mart holds the official national CPI, so
+  the page never calls it that.
+
+**Code shape.** `analysis.py` holds every calculation as plain pandas, tested against numbers worked
+out by hand in `tests/dashboard_fixtures.py`. `charts.py` builds Altair specs, and tests read the
+specs to check the labelling rules. Pages are thin scripts. Each mart is read whole through the
+marts-only reader and cached for ten minutes; filters run in pandas, so no viewer input ever reaches
+SQL.
+
+**Two things found by looking at the dashboard in a browser, not by tests.**
+- Vega-Lite cannot stretch a stacked (`vconcat`) chart to its container: the main chart collapsed to
+  a sliver. Charts that must line up month for month are now separate charts sharing an explicit
+  list of months and a fixed y-axis width. A test checks they share the months.
+- Category charts with a fixed pixel height dropped every other state label. They now use a height
+  per row. These were seen with headless Microsoft Edge screenshots taken on the owner's machine
+  against a scratch database. That check is not in CI; the app tests cover behaviour and the specs,
+  not pixels.
+
+**Theme.** Streamlit's bundled financial-dashboard theme, dark, set in `.streamlit/config.toml` with
+no custom CSS. Its Google Fonts links were left out so opening the dashboard makes no third-party
+request, in line with turning off Streamlit's usage statistics (#61).
+
+**Trade-offs.**
+- Five pages are more to keep correct than three. Every page has a render test on hand-checked data
+  and one against a real built warehouse as the read-only role.
+- Rise months are few (two in the sample), so the per-state sensitivity table is a pointer, and the
+  page says so. A longer real history will make it more useful.
+- Diesel appears only on the fuel page, behind a warning about its open findings (#53a). It is not
+  part of the answer.
+
+### 64. A glossary page, with its text in a tested module
+
+**Decision (owner, 31 Oct 2026).** A sixth page, after About the data, explains every acronym on the
+dashboard and what each number means and why it matters to the question, grouped by the page it
+appears on, with a search box. The owner supplied the expansions of SKDS (Sistem Kawalan Diesel
+Bersubsidi), SKPS (Sistem Kawalan Petrol Bersubsidi) and BUDI95 (the targeted RON95 subsidy
+programme under the BUDI MADANI initiative); the repository did not record them before.
+
+**Why a page, not only tooltips.** The pages already carry short `help` text on their metrics, but a
+viewer meeting "pp", "COICOP" or "awaiting CPI" for the first time needs the reason as well as the
+definition, and a tooltip has no room for it. The glossary repeats the rules the pages follow (day
+weighting #46, national fuel #33, partial months #42, the half-sen tolerance, the headline fuel read
+from the mart #41) in one place, written for a reader rather than a reviewer.
+
+**Code shape.** The text is plain data in `glossary.py`, and the page only renders it; it reads no
+tables. Tests check that every entry is complete, that no term is listed twice, that the pages it
+names are the app's pages, and that every upper-case acronym in the pages' and charts' strings and
+in the fuel names has an entry. A new page that shows an unexplained acronym fails CI.
+
+**Trade-offs.**
+- The definitions are a second copy of what the pages and `analysis.py` do, so they can drift. The
+  acronym test catches a new term, not a changed meaning; changing what a number means needs its
+  glossary entry changed by hand, and the module's docstring says so.
+- Lower-case units (pp, sen, r) and spelled-out phrases cannot be found by the scan; a short fixed
+  list in the tests covers the ones on screen today.

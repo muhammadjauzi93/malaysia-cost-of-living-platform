@@ -97,6 +97,20 @@ def test_the_fuel_job_refreshes_the_snapshot_and_the_dashboard_mart(graph):
     assert "staging/stg_cpi_state" not in selected
 
 
+def test_every_ingestion_job_refreshes_the_data_health_mart(graph):
+    # The dashboard's synthetic label and last-load times must change in the run that changed
+    # the data, not at the next full build (DECISIONS.md #62).
+    for job in ("fuel_prices_job", "cpi_state_job", "fx_rates_job"):
+        selected = {k.to_user_string() for k in graph.get_job(job).asset_layer.selected_asset_keys}
+        assert "marts/mart_data_health" in selected, job
+
+
+def test_the_run_log_is_an_external_table_not_a_stray_asset(graph):
+    run_log = graph.asset_graph.get(dbt_orch.RUN_LOG.key)
+    assert run_log.group_name == "pipeline_metadata"
+    assert not run_log.is_materializable
+
+
 def test_dbt_assets_are_grouped_by_layer_and_the_build_job_exists(graph):
     g = graph.asset_graph
     groups = {g.get(k).group_name for k in g.get_all_asset_keys() if "/" in k.to_user_string()}

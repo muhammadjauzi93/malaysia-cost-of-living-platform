@@ -20,7 +20,7 @@ python tasks.py lineage                # redraw ../docs/lineage.svg after changi
 | `staging/` | `staging` | view | Rename, cast, trim. One model per source table. No joins, no logic |
 | `intermediate/` | `intermediate` | view | Joins, windows, pivots, unit normalisation. Analysts do not query these |
 | `marts/` | `marts` | table; `fct_fuel_prices` incremental | What analysts and the dashboard read |
-| `seeds/` | `reference` | seed | Hand-maintained lists: states, CPI divisions, currencies |
+| `seeds/` | `reference` | seed | Hand-maintained lists: states, CPI divisions, currencies, reviewed fuel price events |
 | `snapshots/` | `snapshots` | snapshot | History of values that get revised |
 
 A mart never reads a raw table directly, so a source change touches exactly one staging model.

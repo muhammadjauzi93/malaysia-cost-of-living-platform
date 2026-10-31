@@ -18,6 +18,8 @@ dependencies = [
     "dagster>=1.13.26",
     "dagster-webserver>=1.13.26",
     "dagster-dbt>=0.29.26",
+    # The dashboard (DECISIONS.md #55). Altair, which draws its charts, comes with it.
+    "streamlit>=1.66",
     # Dagster pulls this in, and its newest release (1.85) is generated against protobuf 7, which
     # the rest of the stack does not use yet. Plain pip took it and the test suite failed to import
     # (see DECISIONS.md #54). The lock already pins 1.81.1, so this only makes pip agree with it.

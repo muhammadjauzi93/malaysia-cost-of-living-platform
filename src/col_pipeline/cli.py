@@ -7,6 +7,7 @@
     col-pipeline init-db
     col-pipeline probe-bnm
     col-pipeline load-sample [--end YYYY-MM-DD]     (synthetic data, scratch databases only)
+    col-pipeline create-dashboard-role              (the dashboard's read-only login)
 
 Also runnable as `python -m col_pipeline.cli ...`.
 """
@@ -26,7 +27,7 @@ import requests
 from sqlalchemy import create_engine, text
 
 from col_pipeline import runner
-from col_pipeline.config import Settings
+from col_pipeline.config import DEFAULT_DASHBOARD_USER, Settings
 from col_pipeline.extract import BNM_ACCEPT
 from col_pipeline.logging_config import setup_logging
 from col_pipeline.quality import kl_today
@@ -112,6 +113,10 @@ def build_parser() -> argparse.ArgumentParser:
         type=iso_date,
         metavar="YYYY-MM-DD",
         help="Newest date in the sample (default: today in Kuala Lumpur).",
+    )
+    sub.add_parser(
+        "create-dashboard-role",
+        help="Create the dashboard's read-only role, or reset its password (safe to re-run).",
     )
     return parser
 
@@ -255,6 +260,31 @@ def init_db() -> int:
     return 0
 
 
+def create_dashboard_role() -> int:
+    """Create the read-only login the dashboard uses, from DASHBOARD_DB_* in .env."""
+    from col_pipeline.dashboard.roles import grant_dashboard_reader
+
+    settings = Settings.from_env()  # loads .env, so the variables below are visible too
+    role = os.environ.get("DASHBOARD_DB_USER") or DEFAULT_DASHBOARD_USER
+    password = os.environ.get("DASHBOARD_DB_PASSWORD")
+    if not password:
+        print("[FAIL] DASHBOARD_DB_PASSWORD is not set. Add it to .env (see .env.example).")
+        return 1
+    engine = create_engine(settings.db_url, connect_args={"connect_timeout": 5})
+    try:
+        with engine.begin() as conn:
+            grant_dashboard_reader(conn, role, password)
+    except Exception as exc:
+        # First line only: Postgres can quote the failing statement, which holds the password.
+        reason = (str(exc).strip().splitlines() or [""])[0]
+        print(f"[FAIL] Could not create the dashboard role: {type(exc).__name__}: {reason}")
+        return 1
+    finally:
+        engine.dispose()
+    print(f"[ OK ] Role {role} can read the marts schema and nothing else.")
+    return 0
+
+
 def load_sample_data(end: date | None) -> int:
     """Fill an empty database with synthetic data. Refuses if any raw table has rows."""
     from col_pipeline.sample_data import SampleDataError, load_sample
@@ -342,6 +372,8 @@ def main(argv: list[str] | None = None) -> int:
         return probe_bnm()
     if args.command == "load-sample":
         return load_sample_data(args.end)
+    if args.command == "create-dashboard-role":
+        return create_dashboard_role()
     raise AssertionError(f"unhandled command {args.command!r}")  # argparse prevents this
 
 

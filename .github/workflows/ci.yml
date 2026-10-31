@@ -90,6 +90,18 @@ jobs:
       - name: Lineage diagram matches the models
         run: uv run python tasks.py lineage --check
       - run: uv run python tasks.py dbt-freshness
+      # The dashboard's read-only role (DECISIONS.md #58): the real task creates it, then the tests
+      # prove it reads marts and nothing else, cannot write, and keeps its grant when dbt rebuilds
+      # a mart. Before the Dagster tests below: dropping a schema also drops the role's grants.
+      - name: Dashboard role can be created
+        env:
+          DASHBOARD_DB_PASSWORD: ci-reader
+        run: uv run python tasks.py create-dashboard-role
+      - name: Dashboard role reads marts only
+        env:
+          TEST_DB_URL: postgresql+psycopg2://ci:ci@localhost:5432/col_ci
+          REQUIRE_DBT_TESTS: "1"
+        run: uv run pytest -v tests/integration/test_dashboard_role.py
       # Last, because these tests drop and rebuild the warehouse schemas. They run the real
       # Dagster jobs with real dbt: a revised price must reach the snapshot and the mart in one
       # ingestion run, and a failing dbt test must fail that run. REQUIRE_DBT_TESTS turns a

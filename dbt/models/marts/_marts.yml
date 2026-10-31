@@ -336,3 +336,82 @@ models:
       - name: built_at
         description: "When this table was built. The status columns are correct as of this time."
         data_tests: [not_null]
+
+  # ---------------- trust ----------------
+  - name: mart_data_health
+    description: >
+      Whether the dashboard's data can be trusted, by source: how many rows, how many are
+      synthetic, the data's date range, and the pipeline's last run. Grain: one row per source,
+      always all three. The dashboard labels synthetic data from this table (DECISIONS.md #62).
+    columns:
+      - name: source_name
+        description: "Pipeline source name, as in ops.pipeline_runs: fuel_prices, cpi_state or fx_rates."
+        data_tests:
+          - unique
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [fuel_prices, cpi_state, fx_rates]
+      - name: source_label
+        description: "Human-readable name and publisher, for the dashboard."
+        data_tests: [not_null]
+      - name: row_count
+        description: "Rows in the warehouse from this source. Zero before the first load."
+        data_tests: [not_null]
+      - name: synthetic_row_count
+        description: "Rows loaded by `load-sample`, labelled source = 'synthetic-sample'. Not real data."
+        data_tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              arguments:
+                expression: "<= row_count"
+      - name: has_synthetic_rows
+        description: "True if any row from this source is synthetic. The dashboard must say so wherever it shows the source."
+        data_tests: [not_null]
+      - name: earliest_data_date
+        description: "Oldest data date (price, CPI month or rate date). Null before the first load."
+      - name: latest_data_date
+        description: "Newest data date. Null before the first load."
+      - name: last_run_at
+        description: "Start of the source's latest pipeline run. Null if never run (load-sample writes no runs)."
+      - name: last_run_status
+        description: "Status of that run: running, success or failed."
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [running, success, failed]
+      - name: last_success_at
+        description: "End of the latest successful run."
+      - name: failed_runs
+        description: "Failed runs ever recorded for this source."
+        data_tests: [not_null]
+      - name: built_at
+        description: "When this table was built."
+        data_tests: [not_null]
+
+unit_tests:
+  - name: mart_data_health_counts_synthetic_rows_and_reads_the_latest_run
+    description: >
+      Fuel has one real and two synthetic rows, and its latest run failed after an earlier
+      success. CPI has rows but no runs. FX has nothing at all and must still appear, with zero rows.
+    model: mart_data_health
+    given:
+      - input: ref('stg_fuel_prices')
+        rows:
+          - {price_date: 2026-10-01, source_system: data.gov.my/fuelprice}
+          - {price_date: 2026-10-08, source_system: synthetic-sample}
+          - {price_date: 2026-10-15, source_system: synthetic-sample}
+      - input: ref('stg_cpi_state')
+        rows:
+          - {month_date: 2026-09-01, source_system: data.gov.my/cpi_state}
+      - input: ref('stg_fx_rates')
+        rows: []
+      - input: source('ops', 'pipeline_runs')
+        rows:
+          - {run_id: 1, pipeline_name: fuel_prices, started_at: "2026-10-20 01:00:00+00", ended_at: "2026-10-20 01:01:00+00", status: success}
+          - {run_id: 2, pipeline_name: fuel_prices, started_at: "2026-10-27 01:00:00+00", ended_at: "2026-10-27 01:00:30+00", status: failed}
+    expect:
+      rows:
+        - {source_name: fuel_prices, row_count: 3, synthetic_row_count: 2, has_synthetic_rows: true, earliest_data_date: 2026-10-01, latest_data_date: 2026-10-15, last_run_status: failed, failed_runs: 1}
+        - {source_name: cpi_state, row_count: 1, synthetic_row_count: 0, has_synthetic_rows: false, earliest_data_date: 2026-09-01, latest_data_date: 2026-09-01, last_run_status: null, failed_runs: 0}
+        - {source_name: fx_rates, row_count: 0, synthetic_row_count: 0, has_synthetic_rows: false, earliest_data_date: null, latest_data_date: null, last_run_status: null, failed_runs: 0}

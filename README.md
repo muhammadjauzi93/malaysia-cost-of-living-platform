@@ -175,7 +175,7 @@ Everything lives in Postgres. Which tables exist depends on which commands you h
 | `staging` | `stg_fuel_prices`, `stg_cpi_state`, `stg_fx_rates` (views) | `dbt-build` |
 | `intermediate` | `int_fuel_monthly`, `int_fuel_weekly_changes`, `int_cpi_state_monthly`, `int_fx_monthly_myr` (views) | `dbt-build` |
 | `reference` | `state_reference`, `cpi_division_reference`, `currency_reference`, `fuel_price_events` (dbt seeds) | `dbt-build` |
-| `marts` | `dim_date`, `dim_state`, `dim_fuel_type`, `dim_division`, `dim_currency`, `fct_fuel_prices` (incremental), `fct_cpi_state`, `fct_fx_rates`, `fct_fuel_vs_transport_cpi` | `dbt-build` |
+| `marts` | `dim_date`, `dim_state`, `dim_fuel_type`, `dim_division`, `dim_currency`, `fct_fuel_prices` (incremental), `fct_cpi_state`, `fct_fx_rates`, `fct_fuel_vs_transport_cpi`, `mart_data_health` (rows, synthetic rows and last load per source) | `dbt-build` |
 | `snapshots` | `snap_fuel_prices`: every version of every fuel price, including revisions | `dbt-build` |
 
 The dashboard question lives in one table: `marts.fct_fuel_vs_transport_cpi`, one row per state per

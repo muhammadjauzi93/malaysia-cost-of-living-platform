@@ -8,7 +8,7 @@ import dagster as dg
 
 from col_pipeline.orchestration.alerts import alert_on_failure
 from col_pipeline.orchestration.assets import SourceAssets, build_source_assets
-from col_pipeline.orchestration.dbt import DBT_BUILD_JOB, build_dbt_assets, dbt_resource
+from col_pipeline.orchestration.dbt import DBT_BUILD_JOB, RUN_LOG, build_dbt_assets, dbt_resource
 from col_pipeline.orchestration.resources import PipelineResource
 from col_pipeline.orchestration.schedules import build_monitor_schedule, build_schedules
 from col_pipeline.sources import SOURCES
@@ -42,7 +42,7 @@ def build_definitions(
         description="Check every raw table for staleness.",
     )
     jobs = {b.source.name: b.job for b in built}
-    assets: list[dg.AssetsDefinition] = [a for b in built for a in (b.landed, b.raw)]
+    assets: list[dg.AssetsDefinition | dg.AssetSpec] = [a for b in built for a in (b.landed, b.raw)]
     extra_jobs = []
     resources: dict[str, object] = {"pipeline": pipeline or PipelineResource()}
 
@@ -68,7 +68,7 @@ def build_definitions(
                 description="Build the whole dbt warehouse: seeds, models, snapshot and tests.",
             )
         )
-        assets.append(dbt)
+        assets.extend([dbt, RUN_LOG])
         resources["dbt"] = dbt_resource()
 
     return dg.Definitions(

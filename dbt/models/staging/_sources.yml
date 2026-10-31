@@ -40,3 +40,13 @@ sources:
         freshness:
           warn_after: {count: 4, period: day}
           error_after: {count: 5, period: day}
+
+  - name: ops
+    description: >
+      Pipeline metadata written by the Python pipeline: one row per ingestion run. Only the data
+      health mart reads it (DECISIONS.md #57), so the dashboard can show when each source was
+      last loaded without reading anything outside marts.
+    schema: ops
+    tables:
+      - name: pipeline_runs
+        description: "One row per pipeline run, written at the start and updated at the end."

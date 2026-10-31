@@ -812,3 +812,39 @@ error. Falling back to `POSTGRES_PASSWORD` would make it work while silently byp
 **Not verified.** The CI steps have not run on GitHub yet. The dashboard has not been opened in a
 browser; a Streamlit test harness ran the script against a scratch warehouse, and the
 `dashboard` task's server answered its health check.
+
+### 62. The synthetic-data label comes from a first version of the data-health mart
+
+**Problem.** The dashboard must label synthetic data, and it may read only `marts`. No mart carried
+the `source` column, so the label could not be produced without a model change.
+
+**Decision (owner, 31 Oct 2026).** Build `marts.mart_data_health` now, ahead of the data-health
+page, rather than adding `source` to existing marts. One row per source, always all three: rows,
+synthetic rows, data date range, and the pipeline's last run from `ops.pipeline_runs`, which
+becomes a dbt source. The dashboard shows a synthetic-data banner whenever any source has
+synthetic rows.
+
+**Why this mart and not a `source` column on the facts.** It changes no existing mart, and it is
+the mart #57 already approved. A banner per source is also what a viewer needs; a per-row label
+would only matter if real and synthetic rows were mixed, which `load-sample` prevents by refusing
+to run on a database that already holds rows.
+
+**What it deliberately leaves out.**
+- **The open identical-price runs.** `int_fuel_identical_runs` has a singular test that fails on the
+  real data by design (#53a). `dbt build` skips every model downstream of a failing test, so a mart
+  reading that model would be skipped on exactly the data that needs the warning. How the runs reach
+  the dashboard is decided in step 4.4.
+- **A freshness verdict.** dbt writes freshness results to a file, not the database (#57). The mart
+  gives the newest data date; the page can show its age, but repeating the limits from
+  `_sources.yml` in SQL would make two copies to keep in step. Also step 4.4.
+
+**Trade-off.** `load-sample` writes no pipeline runs, so on the demo data the last-run columns are
+empty. That is true, and the page says "never run by the pipeline" rather than hiding it. The
+label string `synthetic-sample` now lives in Python and in SQL; a test fails if they differ, and
+the mart's unit test fails if the SQL label is changed.
+
+**One orchestration change it forced.** A new dbt source becomes a Dagster dependency, and
+`ops.pipeline_runs` appeared as an unexplained asset in the `default` group, which an existing
+test caught. It is now declared as an external table in a `pipeline_metadata` group
+(`orchestration/dbt.py`). Nothing materialises it; every ingestion job already refreshes the
+health mart because the mart reads all three staging models. Tests pin both facts.

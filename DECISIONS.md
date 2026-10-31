@@ -659,3 +659,29 @@ change was not agreed for this phase. It should be the first change to the rule 
 persisted docs), its checks, and its orchestration in Dagster are complete and tested on the
 synthetic sample. The real-data findings above are open and documented; the rule is a working
 detector, not a resolved data-quality question.
+
+### 54. The plain-pip install path is tested on its own, and it pins the transitive gRPC package
+
+**Found by the CI pip-fallback job, which failed on Ubuntu and Windows while every uv job passed.**
+Plain pip has no lockfile, so it resolved the newest `grpcio-health-checking` (1.85.1). That release
+is generated against protobuf 7, while the stack runs protobuf 6.33.6. Importing dagster then fails
+with a protobuf version error, so the whole orchestration test module could not be collected.
+
+**Decision.** State the bound the lockfile already uses: `grpcio-health-checking>=1.81.1,<1.82`. The
+uv lock gains two metadata lines and no pinned version changes. Upgrading to protobuf 7 instead was
+rejected: it is shared with the dbt packages and is a larger change than this failure justifies.
+
+**What this shows.** A lockfile hides resolver drift. Every uv job tested exact versions, so the
+newest-version problem could not appear there. The pip job is the only one that sees what a user
+who does not use uv gets, and it must stay green.
+
+**Two mistakes made while diagnosing it, recorded because they would repeat.**
+- My first reproduction installed only the dev group. CI's `setup --pip` installs the dbt group too,
+  and the missing `dbt` program produced a failure that was not the real one. A reproduction must
+  match the CI command exactly, including every group.
+- Protobuf's error names the gencode version, which points at the cause directly. Reading the
+  error before guessing saved a change to the wrong package.
+
+**Not verified.** The Windows pip job runs on GitHub and has not been run here. The Ubuntu and
+Windows pip environments resolve the same packages, so the result should match, but the CI run is
+the test.

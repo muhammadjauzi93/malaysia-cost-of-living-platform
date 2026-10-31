@@ -2,7 +2,7 @@
 
 Short records of choices made, the alternatives, and what was traded away.
 Newest at the bottom. Phase 1 = fuel price ingestion, Phase 2 = orchestration and quality,
-Phase 3 = the dbt warehouse (#30 onwards).
+Phase 3 = the dbt warehouse (#30 onwards), Phase 4 = the dashboard and release (#55 onwards).
 
 ---
 
@@ -685,3 +685,85 @@ who does not use uv gets, and it must stay green.
 **Not verified.** The Windows pip job runs on GitHub and has not been run here. The Ubuntu and
 Windows pip environments resolve the same packages, so the result should match, but the CI run is
 the test.
+
+---
+
+## Phase 4: the dashboard and the release
+
+Entries 55 to 60 are the owner's answers to the six open questions in `docs/PHASE4-HANDOVER.md`
+(D1 to D6), recorded on 31 Oct 2026 before any dashboard code was written.
+
+### 55. The dashboard is Streamlit (D1)
+
+**Decision.** Build the dashboard in Streamlit, in Python, inside this repository.
+
+**Why.** It is the same language and toolchain as the pipeline, so the query functions are tested
+with the same pytest suite and the same CI jobs. A reviewer runs it with one command after the
+demo data is loaded.
+
+**Alternatives rejected.** Evidence builds a good static site, but it adds a Node toolchain to a
+Python project. Power BI is the owner's work tool, but a reviewer without it cannot open the
+dashboard, which defeats the point of a portfolio project you can run.
+
+**Trade-off.** Streamlit and a charting library become runtime dependencies. They are resolved
+without a lockfile on the pip path, so that job must be checked when they are added (#54).
+
+### 56. The dashboard reads the local Postgres marts; nothing is hosted in v1.0.0 (D2)
+
+**Decision.** The app connects to the local Docker Postgres and reads the `marts` schema. The
+README shows a screenshot. No public demo is hosted.
+
+**Why.** A hosted app cannot reach a local database, so a public demo would need an exported
+snapshot of the marts, a host, and a decision on which data to republish. None of that is needed
+to answer the central question, and hosting nothing keeps the running cost at RM0.
+
+**Trade-off.** A visitor sees a screenshot, not a live page, unless they clone and run it. A
+static snapshot export stays a possible later step, and it would publish synthetic data only
+unless the owner decides otherwise.
+
+### 57. Data health gets its own mart, the one dbt change in Phase 4 (D3)
+
+**Decision.** Add `marts.mart_data_health`, built from pipeline metadata (`ops.pipeline_runs` and
+the freshness and rule results), and a dashboard page that reads it.
+
+**Why.** The owner wants the dashboard to show whether the data can be trusted, including the open
+identical-price runs (#53a). The dashboard may read only `marts`, so reading `ops` directly would
+break that rule. A mart keeps the rule, and the data gets dbt tests like every other mart.
+
+**Trade-off.** Phase 4 otherwise changes no models. This one is allowed on purpose and is limited
+to the one mart, its tests and the regenerated lineage diagram. Its exact inputs are settled in
+step 4.4: run history is in `ops.pipeline_runs`, but dbt's freshness results are written to a file,
+not the database, so how they reach a mart is still open.
+
+### 58. The app connects as a read-only `dashboard_reader` role (D4)
+
+**Decision.** A `tasks.py` task creates a `dashboard_reader` role with `USAGE` on `marts` and
+`SELECT` on its tables only. The dashboard connects as that role.
+
+**Why.** The marts-only rule is then enforced by Postgres, not only by code review. A test checks
+that a write fails and that reading another schema fails.
+
+**Trade-off.** One more set of credentials in `.env`, and one more setup step in the demo path.
+Tables that dbt rebuilds must keep the grant, which step 4.1 has to handle (for example with
+default privileges or a dbt grant), and a test must prove it survives a rebuild.
+
+### 59. The dbt docs site is published to GitHub Pages (D5)
+
+**Decision.** Publish the generated dbt docs site to GitHub Pages and link it from the README.
+
+**Why.** A reviewer can click through the models, columns, tests and lineage without cloning
+anything. The site holds model descriptions and compiled SQL, which are public in the repository
+already.
+
+**Trade-off.** A Pages workflow to write and keep green, and the owner must turn on Pages in the
+repository settings. The site must be built from the synthetic sample in CI, never from the
+owner's real database. Step 4.7 checks that the published catalog holds no real data.
+
+### 60. v1.0.0 scope (D6)
+
+**Decision.** v1.0.0 is the dashboard, measured README numbers, the lineage diagram, the dbt docs
+site, DECISIONS for every phase, and launch posts.
+
+**Out of scope, on purpose.** Hosting the dashboard, an API, forecasting or ML, fixing the
+identical-price rule's review gap, and resolving the open real-data runs (#53a). These are listed
+in the README as known issues or next steps, not hidden.

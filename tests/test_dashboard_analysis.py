@@ -62,56 +62,64 @@ def test_last_months_counts_back_from_the_newest_month(fvc):
 # ---------- the answer ----------
 
 
-def test_lag_pairs_drop_awaiting_months_and_the_first_month(fvc):
-    pairs = an.lag_pairs(fvc)
-    assert sorted(pairs["month_date"].dt.month.unique()) == [3, 4, 5]
+def test_change_pairs_drop_awaiting_months_and_the_first_month(fvc):
+    pairs = an.change_pairs(fvc)
+    assert sorted(pairs["month_date"].dt.month.unique()) == [2, 3, 4, 5]
     assert (pairs["cpi_status"] == an.PUBLISHED).all()
-    april = pairs[pairs["month_date"] == "2026-04-01"]
-    assert set(april["fuel_direction"]) == {an.RISE}
+    march = pairs[pairs["month_date"] == "2026-03-01"]
+    assert set(march["fuel_direction"]) == {an.RISE}
 
 
 def test_pass_through_matches_the_hand_calculation(fvc):
-    result = an.pass_through(an.lag_pairs(fvc))
-    assert result.mean_after(an.RISE) == pytest.approx(0.4)
-    assert result.mean_after(an.NO_CHANGE) == pytest.approx(0.5 / 6)
-    assert result.gap_pp == pytest.approx(0.4 - 0.5 / 6)
-    assert result.months_after(an.RISE) == 1
-    assert result.months_after(an.NO_CHANGE) == 2
-    assert result.months == 3
-    # The May fall is felt in June, which is awaiting CPI: no fall can be compared yet.
-    assert result.months_after(an.FALL) == 0
-    assert result.mean_after(an.FALL) is None
+    result = an.pass_through(an.change_pairs(fvc))
+    assert result.mean_when(an.RISE) == pytest.approx(0.4)
+    assert result.mean_when(an.NO_CHANGE) == pytest.approx(0.2)
+    assert result.gap_pp == pytest.approx(0.2)
+    assert result.months_when(an.RISE) == 1
+    assert result.months_when(an.NO_CHANGE) == 2
+    assert result.months == 4
+    # The May fall is felt in May, whose CPI is published.
+    assert result.months_when(an.FALL) == 1
+    assert result.mean_when(an.FALL) == pytest.approx(-0.1 / 3)
+
+
+def test_pass_through_reports_what_last_months_change_adds(fvc):
+    result = an.pass_through(an.change_pairs(fvc))
+    assert result.next_month_pp_per_10_sen == pytest.approx(-1 / 9)
+    # Without months that have both changes there is nothing to separate.
+    alone = an.pass_through(an.change_pairs(fvc.assign(fuel_mom_change_prev_month_myr=np.nan)))
+    assert alone.next_month_pp_per_10_sen is None
 
 
 def test_pass_through_for_one_state(fvc):
-    pairs = an.lag_pairs(fvc)
+    pairs = an.change_pairs(fvc)
     selangor = an.pass_through(pairs[pairs["state_name"] == "Selangor"])
-    assert selangor.mean_after(an.RISE) == pytest.approx(0.6)
-    assert selangor.mean_after(an.NO_CHANGE) == pytest.approx(0.1)
-    assert selangor.gap_pp == pytest.approx(0.5)
+    assert selangor.mean_when(an.RISE) == pytest.approx(0.6)
+    assert selangor.mean_when(an.NO_CHANGE) == pytest.approx(0.15)
+    assert selangor.gap_pp == pytest.approx(0.45)
 
 
 def test_correlation_needs_variation_in_both_series(fvc):
-    pairs = an.lag_pairs(fvc)
+    pairs = an.change_pairs(fvc)
     assert an.pass_through(pairs).correlation is not None
-    flat = pairs.assign(fuel_mom_change_prev_month_myr=0.0)
+    flat = pairs.assign(fuel_mom_change_myr=0.0)
     assert an.pass_through(flat).correlation is None
     assert an.pass_through(flat).pp_per_10_sen is None
 
 
 def test_finding_states_the_numbers_and_never_more(fvc):
-    sentence = an.finding(an.pass_through(an.lag_pairs(fvc)), "RON95", "the average state's")
+    sentence = an.finding(an.pass_through(an.change_pairs(fvc)), "RON95", "the average state's")
     assert sentence == (
-        "In the 1 month after RON95 rose, the average state's transport CPI changed by +0.40% "
-        "on average, against +0.08% after months when the price held."
+        "In the 1 month when RON95 rose, the average state's transport CPI changed by +0.40% "
+        "on average in the same month, against +0.20% in months when the price held."
     )
 
 
 def test_finding_says_when_there_is_nothing_to_measure(fvc):
-    no_rise = fvc.assign(fuel_mom_change_prev_month_myr=0.0)
-    assert "did not rise" in an.finding(an.pass_through(an.lag_pairs(no_rise)), "RON95", "x")
+    no_rise = fvc.assign(fuel_mom_change_myr=0.0)
+    assert "did not rise" in an.finding(an.pass_through(an.change_pairs(no_rise)), "RON95", "x")
     nothing = fvc.assign(cpi_status=an.AWAITING)
-    assert "no month" in an.finding(an.pass_through(an.lag_pairs(nothing)), "RON95", "x")
+    assert "no month" in an.finding(an.pass_through(an.change_pairs(nothing)), "RON95", "x")
 
 
 def test_national_monthly_averages_states_but_not_awaiting_months(fvc):
@@ -144,16 +152,16 @@ def test_ranking_is_empty_when_nothing_is_published(fvc):
 
 
 def test_sensitivity_by_state(fvc):
-    table = an.state_sensitivity(an.lag_pairs(fvc)).set_index("state_name")
-    assert table.loc["Selangor", "gap_pp"] == pytest.approx(0.5)
-    assert table.loc["Johor", "gap_pp"] == pytest.approx(0.45)
-    assert table.loc["Sabah", "gap_pp"] == pytest.approx(0.0)
+    table = an.state_sensitivity(an.change_pairs(fvc)).set_index("state_name")
+    assert table.loc["Selangor", "gap_pp"] == pytest.approx(0.45)
+    assert table.loc["Johor", "gap_pp"] == pytest.approx(0.2)
+    assert table.loc["Sabah", "gap_pp"] == pytest.approx(-0.05)
     assert table.index.tolist() == ["Selangor", "Johor", "Sabah"]
     assert (table["rises"] == 1).all()
 
 
 def test_sensitivity_of_nothing_is_an_empty_table():
-    empty = an.state_sensitivity(an.lag_pairs(fx.fuel_vs_cpi().iloc[0:0]))
+    empty = an.state_sensitivity(an.change_pairs(fx.fuel_vs_cpi().iloc[0:0]))
     assert empty.empty and "gap_pp" in empty.columns
 
 

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "col-pipeline"
-version = "0.1.0"
+version = "1.0.0"
 description = "Malaysia Cost-of-Living Data Platform: ingestion and orchestration"
 readme = "README.md"
 requires-python = ">=3.11"

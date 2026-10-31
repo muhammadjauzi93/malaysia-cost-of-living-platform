@@ -122,10 +122,10 @@ def test_answer_page_states_the_hand_checked_finding(monkeypatch):
     app = run_app()
     assert not app.exception
     finding = next(i.value for i in app.info if "rose" in i.value)
-    assert "+0.40% on average, against +0.08%" in finding
+    assert "+0.40% on average in the same month, against +0.20%" in finding
     metrics = {m.label: m.value for m in app.metric}
     assert metrics["RON95 pump price"] == "RM2.00"
-    assert metrics["Extra transport inflation after a rise"] == "+0.32 pp"
+    assert metrics["Extra transport inflation in a rise month"] == "+0.20 pp"
     assert metrics["RON95 price changes"] == "2"
 
 

@@ -21,7 +21,7 @@ LABEL_COLOR = "#E2E8F0"  # value labels on the dark background
 # Fuels are categories, not good or bad news, so no red or green: the headline fuel gets the accent.
 SERIES_COLORS = [ACCENT, "#A78BFA", PARTIAL_COLOR, "#38BDF8", "#94A3B8", "#FB923C"]
 DIRECTION_COLORS = alt.Scale(domain=DIRECTIONS, range=[FALL_COLOR, HELD_COLOR, RISE_COLOR])
-DIRECTION_LABELS = {FALL: "After a fall", NO_CHANGE: "After no change", RISE: "After a rise"}
+DIRECTION_LABELS = {FALL: "Fuel fell", NO_CHANGE: "Fuel held", RISE: "Fuel rose"}
 REGION_COLORS = alt.Scale(domain=["Peninsular", "East Malaysia"], range=[ACCENT, "#A78BFA"])
 
 PARTIAL_LABEL = "Partial month"
@@ -62,8 +62,8 @@ def fuel_and_transport_timeline(
     """Two aligned charts. Top: the national fuel price by month. Bottom: one state's transport
     CPI change by month.
 
-    Dashed rules mark months when the fuel average moved, so a reader can look one bar to the
-    right for the effect. The partial month is shaded in both; awaiting months are labelled.
+    Dashed rules mark months when the fuel average moved, so a reader can read the effect in the
+    bar on the same line. The partial month is shaded in both; awaiting months are labelled.
     """
     df = national[["month_date", "fuel_avg_price_myr", "fuel_mom_change_myr", "fuel_month_status"]]
     df = df.merge(
@@ -154,7 +154,7 @@ def fuel_and_transport_timeline(
 
 
 def pass_through_bars(by_direction: pd.DataFrame, state_points: pd.DataFrame | None = None):
-    """Average transport CPI change in the month after a fuel fall, hold and rise.
+    """Average transport CPI change in months when fuel fell, held and rose.
 
     `state_points`, if given, marks one state's own averages as white ticks over the bars.
     """
@@ -166,14 +166,14 @@ def pass_through_bars(by_direction: pd.DataFrame, state_points: pd.DataFrame | N
     )
     order = [DIRECTION_LABELS[d] for d in DIRECTIONS]
     x = alt.X("label:N", sort=order, title=None, axis=alt.Axis(labelAngle=0))
-    y = alt.Y("mean_transport_mom_pct:Q", title="Transport CPI next month, % (avg)")
+    y = alt.Y("mean_transport_mom_pct:Q", title="Transport CPI same month, % (avg)")
     base = alt.Chart(df).encode(x=x)
     layers = [
         base.mark_bar(cornerRadiusEnd=3, size=56).encode(
             y=y,
             color=alt.Color("direction:N", scale=DIRECTION_COLORS, legend=None),
             tooltip=[
-                alt.Tooltip("label:N", title="Fuel last month"),
+                alt.Tooltip("label:N", title="Fuel that month"),
                 alt.Tooltip(
                     "mean_transport_mom_pct:Q", title="Avg transport CPI change (%)", format="+.3f"
                 ),

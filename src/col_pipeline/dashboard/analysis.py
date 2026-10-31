@@ -93,40 +93,47 @@ def national_monthly(fvc: pd.DataFrame) -> pd.DataFrame:
     return out
 
 
-def lag_pairs(fvc: pd.DataFrame) -> pd.DataFrame:
-    """State-months that can answer the question: last month's fuel change beside this month's
-    transport CPI change. Months awaiting CPI, and the first month (no previous change), drop out.
+def change_pairs(fvc: pd.DataFrame) -> pd.DataFrame:
+    """State-months that can answer the question: a month's fuel change beside the same month's
+    transport CPI change. Months awaiting CPI, and the first month (no change yet), drop out.
+
+    Same month, not the month after: CPI prices are collected through the month, so a weekly
+    price change shows up in the month it happens (DECISIONS.md #65).
     """
     usable = fvc[
         (fvc["cpi_status"] == PUBLISHED)
-        & fvc["fuel_mom_change_prev_month_myr"].notna()
+        & fvc["fuel_mom_change_myr"].notna()
         & fvc["transport_cpi_mom_pct"].notna()
     ].copy()
-    usable["fuel_direction"] = usable["fuel_mom_change_prev_month_myr"].map(direction)
+    usable["fuel_direction"] = usable["fuel_mom_change_myr"].map(direction)
     return usable
 
 
 @dataclass(frozen=True)
 class PassThrough:
-    """How transport CPI moved in the month after each kind of fuel change."""
+    """How transport CPI moved in months when the fuel price rose, fell or held."""
 
     by_direction: pd.DataFrame  # direction, mean_transport_mom_pct, months, observations
-    gap_pp: float | None  # mean after a rise minus mean after no change, percentage points
-    correlation: float | None  # Pearson r of last month's fuel change and this month's CPI change
+    gap_pp: float | None  # mean in a rise month minus mean in a no-change month, percentage points
+    correlation: float | None  # Pearson r of a month's fuel change and its CPI change
     pp_per_10_sen: float | None  # least-squares slope: CPI change per 10 sen of fuel change
     months: int  # distinct months in the comparison
+    # The previous month's slope once the same month's change is in the regression: the check
+    # that nothing arrives a month late. None when there is too little variation to fit it.
+    next_month_pp_per_10_sen: float | None = None
 
-    def months_after(self, which: str) -> int:
+    def months_when(self, which: str) -> int:
         row = self.by_direction[self.by_direction["direction"] == which]
         return int(row["months"].iloc[0]) if len(row) else 0
 
-    def mean_after(self, which: str) -> float | None:
+    def mean_when(self, which: str) -> float | None:
         row = self.by_direction[self.by_direction["direction"] == which]
         return float(row["mean_transport_mom_pct"].iloc[0]) if len(row) else None
 
 
 def pass_through(pairs: pd.DataFrame) -> PassThrough:
-    """Average transport CPI change after fuel rose, fell or held, across the given state-months."""
+    """Average transport CPI change in months when fuel rose, fell or held, across the given
+    state-months."""
     grouped = (
         pairs.groupby("fuel_direction")
         .agg(
@@ -145,19 +152,39 @@ def pass_through(pairs: pd.DataFrame) -> PassThrough:
     held = grouped.loc[grouped["direction"] == NO_CHANGE, "mean_transport_mom_pct"]
     gap = float(rise.iloc[0] - held.iloc[0]) if len(rise) and len(held) else None
 
-    x = pairs["fuel_mom_change_prev_month_myr"].astype(float).to_numpy()
+    x = pairs["fuel_mom_change_myr"].astype(float).to_numpy()
     y = pairs["transport_cpi_mom_pct"].astype(float).to_numpy()
     correlation = slope = None
     if len(x) >= 3 and np.ptp(x) > 0 and np.ptp(y) > 0:
         correlation = float(np.corrcoef(x, y)[0, 1])
         slope = float(np.polyfit(x * 100, y, 1)[0] * 10)  # x in sen, per 10 sen
-    return PassThrough(grouped, gap, correlation, slope, int(pairs["month_date"].nunique()))
+    return PassThrough(
+        grouped,
+        gap,
+        correlation,
+        slope,
+        int(pairs["month_date"].nunique()),
+        _next_month_slope(pairs),
+    )
+
+
+def _next_month_slope(pairs: pd.DataFrame) -> float | None:
+    """CPI change per 10 sen of LAST month's fuel change, holding this month's change fixed."""
+    both = pairs.dropna(subset=["fuel_mom_change_prev_month_myr"])
+    now = both["fuel_mom_change_myr"].astype(float).to_numpy() * 100
+    before = both["fuel_mom_change_prev_month_myr"].astype(float).to_numpy() * 100
+    y = both["transport_cpi_mom_pct"].astype(float).to_numpy()
+    design = np.column_stack([np.ones(len(y)), now, before])
+    if len(y) < 4 or np.linalg.matrix_rank(design) < 3:
+        return None
+    coefficients = np.linalg.lstsq(design, y, rcond=None)[0]
+    return float(coefficients[2] * 10)
 
 
 def finding(result: PassThrough, fuel: str, scope: str) -> str:
     """The page's one-sentence answer, written from the numbers so it can never overstate them."""
-    rises = result.months_after(RISE)
-    held = result.mean_after(NO_CHANGE)
+    rises = result.months_when(RISE)
+    held = result.mean_when(NO_CHANGE)
     if result.months == 0:
         return "There is no month with both a fuel change and published transport CPI yet."
     if rises == 0:
@@ -167,11 +194,11 @@ def finding(result: PassThrough, fuel: str, scope: str) -> str:
         )
     month_word = "month" if rises == 1 else "months"
     sentence = (
-        f"In the {rises} {month_word} after {fuel} rose, {scope} transport CPI changed by "
-        f"{result.mean_after(RISE):+.2f}% on average"
+        f"In the {rises} {month_word} when {fuel} rose, {scope} transport CPI changed by "
+        f"{result.mean_when(RISE):+.2f}% on average in the same month"
     )
     if held is not None:
-        sentence += f", against {held:+.2f}% after months when the price held"
+        sentence += f", against {held:+.2f}% in months when the price held"
     return sentence + "."
 
 
@@ -198,14 +225,15 @@ def state_ranking(fvc: pd.DataFrame) -> tuple[pd.Timestamp | None, pd.DataFrame]
 
 
 def state_sensitivity(pairs: pd.DataFrame) -> pd.DataFrame:
-    """Per state: average transport CPI change after a fuel rise, after no change, and the gap.
+    """Per state: average transport CPI change in fuel-rise months, in no-change months, and the
+    gap.
 
-    The gap is how much more that state's transport CPI rose when fuel had risen the month
-    before. It is NaN for a state with no rise or no unchanged month to compare.
+    The gap is how much more that state's transport CPI rose in months when fuel rose. It is NaN
+    for a state with no rise or no unchanged month to compare.
     """
     if pairs.empty:
         return pd.DataFrame(
-            columns=["state_name", "region", "after_rise", "after_no_change", "gap_pp", "rises"]
+            columns=["state_name", "region", "with_rise", "with_no_change", "gap_pp", "rises"]
         )
     means = pairs.pivot_table(
         index=["state_name", "region"],
@@ -220,11 +248,11 @@ def state_sensitivity(pairs: pd.DataFrame) -> pd.DataFrame:
     )
     out = pd.DataFrame(
         {
-            "after_rise": means[RISE],
-            "after_no_change": means[NO_CHANGE],
+            "with_rise": means[RISE],
+            "with_no_change": means[NO_CHANGE],
         }
     )
-    out["gap_pp"] = out["after_rise"] - out["after_no_change"]
+    out["gap_pp"] = out["with_rise"] - out["with_no_change"]
     out["rises"] = rises.reindex(out.index).fillna(0).astype(int)
     return (
         out.reset_index()

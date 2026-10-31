@@ -1,19 +1,24 @@
 """Small mart tables, shaped like the real marts, with numbers chosen to be checked by hand.
 
-Three states, January to June 2026. RON95 rises 5 sen in March (felt in April's CPI) and falls
-10 sen in May (felt in June, whose CPI is not published yet). June is the partial fuel month.
+Three states, January to June 2026. RON95 rises 5 sen in March and falls 10 sen in May, each
+felt in the same month's CPI. June is the partial fuel month, and its CPI is not published yet.
 
 Transport CPI change, % on month:
              Feb   Mar   Apr   May   Jun
-  Selangor   0.1   0.2   0.6   0.0   awaiting
-  Johor      0.3   0.1   0.4  -0.2   awaiting
-  Sabah      0.2   0.3   0.2   0.1   awaiting
+  Selangor   0.1   0.6   0.2   0.0   awaiting
+  Johor      0.3   0.4   0.1  -0.2   awaiting
+  Sabah      0.2   0.2   0.3   0.1   awaiting
 
-Comparable state-months (previous fuel change known, CPI published): March and May follow a month
-with no change, April follows the rise. So:
-  after a rise      = mean(0.6, 0.4, 0.2)                  = 0.4     (1 month)
-  after no change   = mean(0.2, 0.1, 0.3, 0.0, -0.2, 0.1)  = 0.08333 (2 months)
-  gap               = 0.31667 pp
+Comparable state-months (fuel change known, CPI published): February to May. March is the rise,
+May the fall, February and April held. So:
+  rise month        = mean(0.6, 0.4, 0.2)                 = 0.4      (1 month)
+  no-change month   = mean(0.1, 0.3, 0.2, 0.2, 0.1, 0.3)  = 0.2      (2 months)
+  fall month        = mean(0.0, -0.2, 0.1)                = -0.03333 (1 month)
+  gap               = 0.2 pp
+
+Last month's change, holding this month's fixed (March to May, where both are known): the three
+month means fit exactly, c + 5b1 = 0.4, c + 5b2 = 0.2, c - 10b1 = -1/30 (changes in sen), so
+b1 = 13/450 and b2 = -1/90 pp per sen: -1/9 pp per 10 sen.
 """
 
 from __future__ import annotations
@@ -29,9 +34,9 @@ FUEL_AVG = [2.05, 2.05, 2.10, 2.10, 2.00, 2.00]
 FUEL_MOM = [NAN, 0.0, 0.05, 0.0, -0.10, 0.0]
 FUEL_PREV = [NAN, NAN, 0.0, 0.05, 0.0, -0.10]
 STATES = [
-    ("MY-10", "Selangor", "Peninsular", [NAN, 0.1, 0.2, 0.6, 0.0, NAN]),
-    ("MY-01", "Johor", "Peninsular", [NAN, 0.3, 0.1, 0.4, -0.2, NAN]),
-    ("MY-12", "Sabah", "East Malaysia", [NAN, 0.2, 0.3, 0.2, 0.1, NAN]),
+    ("MY-10", "Selangor", "Peninsular", [NAN, 0.1, 0.6, 0.2, 0.0, NAN]),
+    ("MY-01", "Johor", "Peninsular", [NAN, 0.3, 0.4, 0.1, -0.2, NAN]),
+    ("MY-12", "Sabah", "East Malaysia", [NAN, 0.2, 0.2, 0.3, 0.1, NAN]),
 ]
 
 

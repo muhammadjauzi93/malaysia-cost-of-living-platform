@@ -6,12 +6,27 @@ An end-to-end data platform that tracks Malaysian fuel prices, inflation and the
 built to answer one question: **how do pump prices flow through to the cost of living, and
 which states feel it most?**
 
-> **Status: Phase 4 of 4 in progress.** Three public sources are ingested into Postgres on a
-> schedule by Dagster, behind a blocking data-quality gate, with freshness monitoring and failure
-> alerts (Phase 2). A dbt warehouse turns them into tested staging, intermediate and mart layers
-> (18 models, 4 seeds, a snapshot, 207 tests including 7 unit tests), built in CI on every
-> pull request (Phase 3). A six-page Streamlit [dashboard](#the-dashboard-phase-4-in-progress)
-> reads the marts through a read-only role (Phase 4). See the [roadmap](#roadmap).
+> **Status: v1.0.0, all four phases complete.** Three public sources are ingested into Postgres on a schedule by Dagster, behind a
+> blocking data-quality gate, with freshness monitoring and failure alerts (Phase 2). A dbt
+> warehouse turns them into tested staging, intermediate and mart layers (18 models, 4 seeds, a
+> snapshot, 207 tests including 7 unit tests), built in CI on every pull request (Phase 3). A
+> six-page Streamlit [dashboard](#the-dashboard-phase-4) reads the marts through a read-only role,
+> and a [write-up](docs/writeup/README.md) answers the question from the real data (Phase 4).
+> Browse every model, column and test on the [dbt docs site](https://muhammadjauzi93.github.io/malaysia-cost-of-living-platform/).
+
+## What the data shows
+
+From nine and a half years of real fuel prices and state CPI (full analysis, charts and caveats in
+the [write-up](docs/writeup/README.md)):
+
+* **Pump prices reach transport costs in the same month, at about half strength.** Under the
+  weekly float of 2017 to 2021, a 10% change in RON95 came with a 5.3% change in transport CPI;
+  the fuel price alone explains 96% of the monthly swings. Last month's change adds nothing.
+* **BUDI95 cut that link by more than 80%.** The unsubsidised RON95 price rose 63% from February
+  to September 2026; transport CPI rose 3.2% and overall CPI 1.0%.
+* **The burden moved.** Rural and Borneo states used to feel fuel most. In the 2026 shock Kuala
+  Lumpur (+6.1%), Sabah and Putrajaya saw the largest transport rises, Perak, Pahang and Melaka
+  the smallest.
 
 ## Architecture
 
@@ -146,16 +161,19 @@ See [dbt/README.md](dbt/README.md) for the layers and conventions.
 
 This diagram is generated from dbt's own manifest (`python tasks.py lineage`), and CI fails a pull
 request whose diagram no longer matches the models, so it cannot go stale. For the interactive
-version with every model and column description, run `python tasks.py dbt-docs`. The same
+version with every model and column description, open the [dbt docs site](https://muhammadjauzi93.github.io/malaysia-cost-of-living-platform/) (built in CI
+from the synthetic sample) or run `python tasks.py dbt-docs` locally. The same
 descriptions are written into Postgres as comments, so they also appear in any SQL client.
 
-### The dashboard (Phase 4, in progress)
+### The dashboard (Phase 4)
 
 A Streamlit app that answers the project question on its first page, with five supporting pages:
 
+![The answer page: RON95 price beside Selangor's transport CPI month by month, the extra transport inflation in a fuel-rise month, and a one-sentence finding computed from the data](docs/dashboard.png)
+
 | Page | What it shows |
 |---|---|
-| **The answer** | RON95 price beside a state's transport CPI, month by month; transport CPI in the month after a fuel rise, fall or hold; a one-sentence finding computed from the data |
+| **The answer** | RON95 price beside a state's transport CPI, month by month; transport CPI in months when fuel rose, fell or held; a one-sentence finding computed from the data |
 | **States** | States ranked for the latest published month; a state-by-month heatmap under the fuel changes; how much more each state's transport CPI rose after a fuel rise |
 | **Fuel prices** | Weekly pump prices as steps, every change, reviewed events written on the chart |
 | **Cost of living** | Transport beside the other 12 CPI divisions for a state, year on year |
@@ -317,7 +335,15 @@ warehouse (#30 to #50), its orchestration (#51 to #54) and the dashboard (#55 on
   - [x] A snapshot keeping history of a changing source (`snap_fuel_prices`)
   - [x] `dbt build` in GitHub Actions on every pull request
   - [x] The grain of every fact stated in one sentence (in each model's description)
-- [ ] **Phase 4** Dashboard, metrics, write-up.
+- [x] **Phase 4** Dashboard, write-up and the v1.0.0 release (scope in DECISIONS.md #60):
+  - [x] Six-page Streamlit dashboard on the marts, through a read-only role (#55 to #58, #61 to #65)
+  - [x] Data-health mart behind the synthetic-data label (#57, #62)
+  - [x] Measured README numbers and the lineage diagram
+  - [x] [Write-up](docs/writeup/README.md) answering the question from the real data, reproducible
+    with one script
+  - [x] Dashboard screenshot in the README (#56)
+  - [x] dbt docs site on GitHub Pages, built from the synthetic sample only (#59, #66)
+  - [x] v1.0.0 tag and launch posts drafted (#60)
 
 ## Data sources
 

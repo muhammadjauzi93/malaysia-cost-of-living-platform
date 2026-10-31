@@ -1,4 +1,4 @@
-"""The answer page: does a headline fuel price change show up in transport CPI a month later?"""
+"""The answer page: does a headline fuel price change show up in transport CPI?"""
 
 import streamlit as st
 
@@ -12,7 +12,7 @@ fuel = analysis.fuel_label(fuel_type)
 st.title(f"Does a {fuel} price change reach transport CPI?")
 st.caption(
     f"The {fuel} pump price is set nationally each week. Transport CPI is published by state about "
-    "seven weeks after the month ends. This page lines up each month's fuel change with the next "
+    "seven weeks after the month ends. This page lines up each month's fuel change with the same "
     "month's transport CPI."
 )
 
@@ -23,7 +23,7 @@ with st.container(horizontal=True, vertical_alignment="bottom", gap="medium"):
 view = analysis.last_months(fvc, months)
 national = analysis.national_monthly(view)
 state_rows = view[view["state_name"] == state]
-pairs = analysis.lag_pairs(view)
+pairs = analysis.change_pairs(view)
 everyone = analysis.pass_through(pairs)
 mine = analysis.pass_through(pairs[pairs["state_name"] == state])
 price_now = analysis.price_change_since(prices, fuel_type, days=365)
@@ -71,15 +71,15 @@ with cards[1]:
 with cards[2]:
     gap = everyone.gap_pp
     st.metric(
-        "Extra transport inflation after a rise",
+        "Extra transport inflation in a rise month",
         f"{gap:+.2f} pp" if gap is not None else "–",
-        f"{everyone.months_after(analysis.RISE)} rise months",
+        f"{everyone.months_when(analysis.RISE)} rise months",
         delta_color="gray",
         delta_arrow="off",
         delta_description=f"of {everyone.months} compared",
         help=(
-            "Average transport CPI change in the month after the fuel price rose, minus the "
-            "average after months when it held. All states, this period. "
+            "Average transport CPI change in months when the fuel price rose, minus the "
+            "average in months when it held. All states, this period. "
             "pp = percentage points."
         ),
         border=True,
@@ -106,12 +106,17 @@ st.info(
     title="What the data says",
     icon=":material/lightbulb:",
 )
-detail = [f"{everyone.months} months with published CPI and a previous-month fuel change"]
+detail = [f"{everyone.months} months with published CPI and a fuel change to compare"]
 if everyone.correlation is not None:
     detail.append(f"correlation r = {everyone.correlation:+.2f}")
 if everyone.pp_per_10_sen is not None:
     detail.append(f"about {everyone.pp_per_10_sen:+.2f} pp of transport CPI per 10 sen of fuel")
-st.caption(" · ".join(detail) + ". An association across few months, not proof of cause.")
+if everyone.next_month_pp_per_10_sen is not None:
+    detail.append(
+        f"last month's change adds {everyone.next_month_pp_per_10_sen:+.2f} pp per 10 sen "
+        "once this month's is counted"
+    )
+st.caption(" · ".join(detail) + ". An association, not proof of cause.")
 
 # ---------- the evidence ----------
 left, right = st.columns([3, 2], gap="medium")
@@ -121,15 +126,15 @@ with left, st.container(border=True):
     st.altair_chart(price_chart, alt=f"{fuel} national average price by month")
     st.altair_chart(cpi_chart, alt=f"{state}'s transport CPI change by month, aligned with it")
     st.caption(
-        "Dashed lines mark months when the fuel average moved: look one bar to the right for the "
-        "effect. The fuel price is national, the same in every state. Shaded: the current month, "
-        "averaged over the days so far."
+        "Dashed lines mark months when the fuel average moved: the effect shows in the bar on the "
+        "same line. The fuel price is national, the same in every state. Shaded: the current "
+        "month, averaged over the days so far."
     )
 with right, st.container(border=True):
-    st.subheader("Transport CPI the month after")
+    st.subheader("Transport CPI in the same month")
     st.altair_chart(
         charts.pass_through_bars(everyone.by_direction, mine.by_direction),
-        alt="Average transport CPI change in the month after a fuel fall, hold and rise",
+        alt="Average transport CPI change in months when fuel fell, held and rose",
     )
     st.caption(
         f"Bars: all states. White ticks: {state}. 'mo' is the number of months behind each bar; "
@@ -141,12 +146,24 @@ with st.expander("How this is calculated", icon=":material/calculate:"):
         f"""
 - **Monthly fuel price**: the {fuel} price weighted by the days each weekly price was in effect,
   so a price that held for 25 days counts more than one that held for 5.
-- **The lag**: last month's change in that average beside this month's change in transport CPI.
+- **Same month**: each month's change in that average beside the same month's change in transport
+  CPI. CPI prices are collected through the month, so a weekly price change shows up in the month
+  it happens; the caption above reports how little last month's change adds.
 - **Rise, fall or no change**: a monthly average that moved by less than half a sen counts
   as no change.
 - **Left out**: months still awaiting CPI (never treated as zero), and the first month, which has no
-  previous change. The current month is partial and labelled.
+  change to compare. The current month is partial and labelled.
 - **"The average state"**: a simple average of the 16 states, not the official national CPI.
 - Diesel is not on this page. Its series has open data-quality findings that do not affect {fuel}.
 """
     )
+    # Since 30 Sep 2025 `ron95` is the unsubsidised price; BUDI95 is what most households pay.
+    budi = prices[prices["fuel_type"] == "ron95_budi95"].sort_values("price_date")
+    if fuel_type == "ron95" and not budi.empty:
+        st.markdown(
+            f"- **Since {ui.day_label(budi['price_date'].iloc[0])}** the {fuel} series is the "
+            f"unsubsidised price. Eligible citizens pay RM{budi['price_myr'].iloc[-1]:.2f} under "
+            "BUDI95, so from then on the page measures how much of the floating price still "
+            "reaches transport CPI, which is far less than before. See `docs/writeup/` for the "
+            "comparison."
+        )

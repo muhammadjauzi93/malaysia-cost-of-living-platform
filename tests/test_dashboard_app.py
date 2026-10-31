@@ -1,33 +1,58 @@
-"""The dashboard starts, and explains a missing setting or database instead of crashing.
+"""The dashboard, run page by page with Streamlit's own test harness. No database is needed.
 
-Runs the real Streamlit script with Streamlit's own test harness. No database is needed, so this
-also proves on every CI path, the plain-pip one included, that Streamlit installs and imports.
+The marts are replaced by the hand-checked tables in tests/dashboard_fixtures.py, so these tests
+also prove, on every CI path including plain pip, that Streamlit and Altair install and work.
+The same pages are run against a real built warehouse in tests/integration/test_dashboard_role.py.
 """
 
+import json
 from importlib.util import find_spec
 
 import pytest
 import streamlit as st
 from streamlit.testing.v1 import AppTest
 
+from col_pipeline.dashboard import data
+from tests import dashboard_fixtures as fx
+
 # Located, not imported: importing app.py would run the whole Streamlit script.
 APP_SCRIPT = find_spec("col_pipeline.dashboard.app").origin
+PAGES = ["overview", "states", "fuel", "cost_of_living", "about"]
 
 
 @pytest.fixture(autouse=True)
-def fresh_engine_cache(monkeypatch):
-    """Each test builds its own engine. Settings come from the test, never from a local .env:
-    an empty value set here is not overwritten by load_dotenv."""
+def fresh_caches(monkeypatch):
+    """Settings come from each test, never from a local .env: an empty value set here is not
+    overwritten by load_dotenv. Caches are cleared so no test sees another's data."""
     for name in ("DASHBOARD_DB_URL", "DASHBOARD_DB_PASSWORD"):
         monkeypatch.setenv(name, "")
     st.cache_resource.clear()
+    st.cache_data.clear()
     yield
     st.cache_resource.clear()
+    st.cache_data.clear()
+
+
+def use_marts(monkeypatch, tables: dict) -> None:
+    monkeypatch.setattr(data, "mart", lambda name: tables[name].copy())
 
 
 def run_app() -> AppTest:
-    app = AppTest.from_file(APP_SCRIPT, default_timeout=30)
-    return app.run()
+    return AppTest.from_file(APP_SCRIPT, default_timeout=30).run()
+
+
+def open_page(app: AppTest, page: str) -> AppTest:
+    return app.switch_page(f"app_pages/{page}.py").run()
+
+
+def chart_specs(app: AppTest) -> str:
+    return " ".join(
+        json.dumps(json.loads(el.proto.spec), ensure_ascii=False)
+        for el in app.get("vega_lite_chart")
+    )
+
+
+# ---------- before any data ----------
 
 
 def test_missing_reader_password_is_explained():
@@ -47,3 +72,95 @@ def test_unreachable_database_is_explained_with_the_next_steps(monkeypatch):
     assert "create-dashboard-role" in message
     assert ":r@" not in message  # the URL, and so the password, is never shown
     assert not app.metric
+
+
+def test_an_empty_warehouse_says_how_to_load_it(monkeypatch):
+    tables = fx.marts()
+    tables["fct_fuel_vs_transport_cpi"] = tables["fct_fuel_vs_transport_cpi"].iloc[0:0]
+    use_marts(monkeypatch, tables)
+    app = run_app()
+    assert not app.exception
+    assert "load-sample" in app.info[0].value
+
+
+# ---------- every page ----------
+
+
+@pytest.mark.parametrize("page", PAGES)
+def test_every_page_renders_and_labels_synthetic_data(monkeypatch, page):
+    use_marts(monkeypatch, fx.marts(synthetic=True))
+    app = open_page(run_app(), page)
+    assert not app.exception, [e.value for e in app.exception]
+    assert not app.error
+    assert app.title
+    assert any(w.proto.title == "Synthetic data" for w in app.warning)
+
+
+@pytest.mark.parametrize("page", PAGES)
+def test_real_data_carries_no_synthetic_banner(monkeypatch, page):
+    use_marts(monkeypatch, fx.marts(synthetic=False))
+    app = open_page(run_app(), page)
+    assert not app.exception
+    assert not any(w.proto.title == "Synthetic data" for w in app.warning)
+
+
+# ---------- the answer page ----------
+
+
+def test_answer_page_title_comes_from_the_mart_not_the_code(monkeypatch):
+    tables = fx.marts()
+    tables["fct_fuel_vs_transport_cpi"] = tables["fct_fuel_vs_transport_cpi"].assign(
+        fuel_type="ron97"
+    )
+    use_marts(monkeypatch, tables)
+    app = run_app()
+    assert app.title[0].value == "Does a RON97 price change reach transport CPI?"
+
+
+def test_answer_page_states_the_hand_checked_finding(monkeypatch):
+    use_marts(monkeypatch, fx.marts())
+    app = run_app()
+    assert not app.exception
+    finding = next(i.value for i in app.info if "rose" in i.value)
+    assert "+0.40% on average, against +0.08%" in finding
+    metrics = {m.label: m.value for m in app.metric}
+    assert metrics["RON95 pump price"] == "RM2.00"
+    assert metrics["Extra transport inflation after a rise"] == "+0.32 pp"
+    assert metrics["RON95 price changes"] == "2"
+
+
+def test_answer_page_charts_label_partial_and_awaiting_months_and_national_fuel(monkeypatch):
+    use_marts(monkeypatch, fx.marts())
+    specs = chart_specs(run_app())
+    assert "Partial month" in specs
+    assert "Awaiting CPI" in specs
+    assert "RON95 national" in specs
+
+
+def test_state_choice_follows_the_viewer_to_other_pages(monkeypatch):
+    use_marts(monkeypatch, fx.marts())
+    app = run_app()
+    app.selectbox(key="state").select("Johor").run()
+    assert app.metric[1].label == "Johor transport CPI"
+    app = open_page(app, "cost_of_living")
+    assert app.selectbox(key="state").value == "Johor"
+
+
+# ---------- states and fuel pages ----------
+
+
+def test_states_page_ranks_the_latest_published_month_and_says_june_is_awaiting(monkeypatch):
+    use_marts(monkeypatch, fx.marts())
+    app = open_page(run_app(), "states")
+    assert any(s.value == "Ranked, May 2026" for s in app.subheader)
+    assert any("June 2026" in c.value and "never ranked" in c.value for c in app.caption)
+    assert app.metric[0].value == "Sabah"
+
+
+def test_choosing_diesel_shows_the_open_data_quality_warning(monkeypatch):
+    use_marts(monkeypatch, fx.marts())
+    app = open_page(run_app(), "fuel")
+    assert not any(w.proto.title == "Diesel under review" for w in app.warning)
+    app.pills(key="fuels").set_value(["ron95", "diesel"]).run()
+    assert not app.exception
+    assert any(w.proto.title == "Diesel under review" for w in app.warning)

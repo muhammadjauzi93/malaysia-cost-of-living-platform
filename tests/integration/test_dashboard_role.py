@@ -131,3 +131,53 @@ def test_granting_twice_is_safe_and_resets_the_password(owner, reader, test_db_u
         assert row_count(eng, CENTRAL_MART) > 0
     finally:
         eng.dispose()
+
+
+# ---------- the dashboard on a real built warehouse ----------
+
+
+def test_reader_can_read_the_data_health_mart(reader):
+    assert row_count(reader, "mart_data_health") == 3
+
+
+def test_the_lag_columns_match_a_hand_calculation(reader):
+    """The mart's lag column, the heart of the central question, recomputed from its own prices."""
+    from col_pipeline.dashboard.data import tidy
+
+    df = tidy(read_mart(reader, CENTRAL_MART))
+    state = df[df["state_code"] == "MY-10"].sort_values("month_date").reset_index(drop=True)
+    assert len(state) >= 3
+    for i in range(1, len(state)):
+        change = state.loc[i, "fuel_avg_price_myr"] - state.loc[i - 1, "fuel_avg_price_myr"]
+        assert state.loc[i, "fuel_mom_change_myr"] == pytest.approx(change, abs=1e-4)
+    for i in range(2, len(state)):
+        assert state.loc[i, "fuel_mom_change_prev_month_myr"] == pytest.approx(
+            state.loc[i - 1, "fuel_mom_change_myr"], abs=1e-4
+        )
+
+
+def test_every_dashboard_page_renders_on_the_built_warehouse(reader, monkeypatch):
+    from importlib.util import find_spec
+
+    import streamlit as st
+    from streamlit.testing.v1 import AppTest
+
+    from col_pipeline.dashboard.analysis import synthetic_sources
+    from col_pipeline.dashboard.data import tidy
+
+    synthetic = bool(synthetic_sources(tidy(read_mart(reader, "mart_data_health"))))
+    monkeypatch.setenv("DASHBOARD_DB_URL", reader.url.render_as_string(hide_password=False))
+    st.cache_data.clear()
+    st.cache_resource.clear()
+    try:
+        app = AppTest.from_file(find_spec("col_pipeline.dashboard.app").origin, default_timeout=60)
+        app.run()
+        for page in ["overview", "states", "fuel", "cost_of_living", "about"]:
+            app.switch_page(f"app_pages/{page}.py").run()
+            assert not app.exception, (page, [e.value for e in app.exception])
+            assert not app.error, (page, [e.value for e in app.error])
+            banner = any(w.proto.title == "Synthetic data" for w in app.warning)
+            assert banner == synthetic, page
+    finally:
+        st.cache_data.clear()
+        st.cache_resource.clear()

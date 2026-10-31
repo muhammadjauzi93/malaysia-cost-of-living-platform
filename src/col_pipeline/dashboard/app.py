@@ -1,23 +1,18 @@
-"""The dashboard. Start it with `python tasks.py dashboard`.
+"""The dashboard's entry point. Start it with `python tasks.py dashboard`.
 
-Step 4.1 skeleton: it proves the app connects as the read-only role and can read the central
-mart. The pages that answer the central question come in later steps.
+Checks the database once, shows the synthetic-data banner on every page, then runs the page the
+viewer picked. The pages are in app_pages/; the numbers they show come from analysis.py.
 """
 
 from __future__ import annotations
 
 import streamlit as st
-from sqlalchemy import Engine
 from sqlalchemy.exc import SQLAlchemyError
 
-from col_pipeline.dashboard.db import MART_SCHEMA, make_engine, row_count
+from col_pipeline.dashboard import data, ui
+from col_pipeline.dashboard.db import MART_SCHEMA
 
 CENTRAL_MART = "fct_fuel_vs_transport_cpi"
-
-
-@st.cache_resource
-def engine() -> Engine:
-    return make_engine()
 
 
 def first_line(exc: BaseException) -> str:
@@ -26,11 +21,15 @@ def first_line(exc: BaseException) -> str:
     return message.splitlines()[0] if message else type(exc).__name__
 
 
-st.set_page_config(page_title="Malaysia cost of living", layout="wide")
-st.title("Does a RON95 price change reach transport CPI?")
+st.set_page_config(
+    page_title="Fuel prices and transport CPI · Malaysia",
+    page_icon=":material/local_gas_station:",
+    layout="wide",
+)
 
 try:
-    rows = row_count(engine(), CENTRAL_MART)
+    central = data.mart(CENTRAL_MART)
+    health = data.mart("mart_data_health")
 except RuntimeError as exc:  # settings missing from .env
     st.error(str(exc))
     st.stop()
@@ -43,4 +42,29 @@ except SQLAlchemyError as exc:
     )
     st.stop()
 
-st.metric(f"Rows in {MART_SCHEMA}.{CENTRAL_MART}", f"{rows:,}")
+if central.empty:
+    st.info(
+        "The warehouse is built but holds no data. Load it with `python tasks.py run` (real data) "
+        "or, on an empty scratch database, `python tasks.py load-sample`, then "
+        "`python tasks.py dbt-build`.",
+        title="No data yet",
+        icon=":material/database:",
+    )
+    st.stop()
+
+page = st.navigation(
+    [
+        st.Page(
+            "app_pages/overview.py", title="The answer", icon=":material/insights:", default=True
+        ),
+        st.Page("app_pages/states.py", title="States", icon=":material/map:"),
+        st.Page("app_pages/fuel.py", title="Fuel prices", icon=":material/local_gas_station:"),
+        st.Page(
+            "app_pages/cost_of_living.py", title="Cost of living", icon=":material/shopping_cart:"
+        ),
+        st.Page("app_pages/about.py", title="About the data", icon=":material/fact_check:"),
+    ],
+    position="top",
+)
+ui.synthetic_banner(health)
+page.run()

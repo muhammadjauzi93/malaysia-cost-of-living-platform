@@ -848,3 +848,52 @@ the mart's unit test fails if the SQL label is changed.
 test caught. It is now declared as an external table in a `pipeline_metadata` group
 (`orchestration/dbt.py`). Nothing materialises it; every ingestion job already refreshes the
 health mart because the mart reads all three staging models. Tests pin both facts.
+
+### 63. The dashboard: five pages, a computed answer, and labels on the charts themselves
+
+**Decision (owner, 31 Oct 2026).** Five pages with top navigation: the answer, states, fuel prices,
+cost of living, and about the data. The handover asked for three; cost of living and about the data
+were added because they put the answer in context, and they need no model change.
+
+**The answer is computed, never written.** The first page states one sentence ("In the N months
+after RON95 rose, transport CPI changed by X% on average, against Y% after months when the price
+held") built from the numbers, with N always shown, a correlation and slope beside it, and the words
+"an association across few months, not proof of cause". On the synthetic sample the finding is noise,
+and the page says so through the synthetic-data banner; on real data it will say whatever the data
+says. Writing a conclusion into the page would have been easier to make impressive and impossible to
+trust.
+
+**How the comparison is made.**
+- Last month's change in the day-weighted RON95 average (#46) beside this month's transport CPI change.
+- A monthly average that moved by less than half a sen counts as no change: day weighting leaves dust
+  in the fourth decimal of a price that held all month.
+- Months awaiting CPI drop out of every comparison and ranking. They are labelled on the charts, never
+  drawn as zero.
+- "The average state" is a simple mean of the 16 states. No mart holds the official national CPI, so
+  the page never calls it that.
+
+**Code shape.** `analysis.py` holds every calculation as plain pandas, tested against numbers worked
+out by hand in `tests/dashboard_fixtures.py`. `charts.py` builds Altair specs, and tests read the specs
+to check the labelling rules. Pages are thin scripts. Each mart is read whole through the marts-only
+reader and cached for ten minutes; filters run in pandas, so no viewer input ever reaches SQL.
+
+**Two things found by looking at the dashboard in a browser, not by tests.**
+- Vega-Lite cannot stretch a stacked (`vconcat`) chart to its container: the main chart collapsed to a
+  sliver. Charts that must line up month for month are now separate charts sharing an explicit list of
+  months and a fixed y-axis width. A test checks they share the months.
+- Category charts with a fixed pixel height dropped every other state label. They now use a height per
+  row.
+These were seen with headless Microsoft Edge screenshots taken on the owner's machine against a scratch
+database. That check is not in CI; the app tests cover behaviour and the specs, not pixels.
+
+**Theme.** Streamlit's bundled financial-dashboard theme, dark, set in `.streamlit/config.toml` with no
+custom CSS. Its Google Fonts links were left out so opening the dashboard makes no third-party request,
+in line with turning off Streamlit's usage statistics (#61).
+
+**Trade-offs.**
+- Five pages are more to keep correct than three. Every page has a render test on hand-checked data and
+  one against a real built warehouse as the read-only role.
+- Rise months are few (two in the sample), so the per-state sensitivity table is a pointer, and the page
+  says so. A longer real history will make it more useful.
+- Diesel appears only on the fuel page, behind a warning about its open findings (#53a). It is not part
+  of the answer.

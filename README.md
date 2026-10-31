@@ -155,8 +155,19 @@ descriptions are written into Postgres as comments, so they also appear in any S
 
 ### The dashboard (Phase 4, in progress)
 
-A Streamlit app that reads only the `marts` schema. It connects as `dashboard_reader`, a role
-that can `SELECT` from `marts` and nothing else, so the database itself enforces that rule.
+A Streamlit app that answers the project question on its first page, with four supporting pages:
+
+| Page | What it shows |
+|---|---|
+| **The answer** | RON95 price beside a state's transport CPI, month by month; transport CPI in the month after a fuel rise, fall or hold; a one-sentence finding computed from the data |
+| **States** | States ranked for the latest published month; a state-by-month heatmap under the fuel changes; how much more each state's transport CPI rose after a fuel rise |
+| **Fuel prices** | Weekly pump prices as steps, every change, reviewed events written on the chart |
+| **Cost of living** | Transport beside the other 12 CPI divisions for a state, year on year |
+| **About the data** | Rows, synthetic rows, date range and last load per source; method notes; open issues |
+
+Partial months, months awaiting CPI, the national fuel price and synthetic data are labelled on the
+charts themselves. It reads only the `marts` schema, connecting as `dashboard_reader`, a role that
+can `SELECT` from `marts` and nothing else, so the database itself enforces that rule.
 Set `DASHBOARD_DB_PASSWORD` in `.env` (see `.env.example`), then:
 
 ```bash

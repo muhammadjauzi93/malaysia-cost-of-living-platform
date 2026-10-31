@@ -17,6 +17,11 @@ dependencies = [
     "tenacity>=8.2",
     "dagster>=1.13.26",
     "dagster-webserver>=1.13.26",
+    "dagster-dbt>=0.29.26",
+    # Dagster pulls this in, and its newest release (1.85) is generated against protobuf 7, which
+    # the rest of the stack does not use yet. Plain pip took it and the test suite failed to import
+    # (see DECISIONS.md #54). The lock already pins 1.81.1, so this only makes pip agree with it.
+    "grpcio-health-checking>=1.81.1,<1.82",
 ]
 
 [project.scripts]
@@ -27,7 +32,7 @@ col-pipeline = "col_pipeline.cli:main"
 # PEP 735 groups. `uv sync` installs the groups named in [tool.uv] default-groups below;
 # pip >= 25.1 uses `--group dev --group dbt`. tasks.py setup --pip reads both from here.
 dbt = [
-    "dbt-core>=1.10.6,<2",
+    "dbt-core>=1.10.6,<1.13",
     "dbt-postgres>=1.9,<2",
 ]
 dev = [

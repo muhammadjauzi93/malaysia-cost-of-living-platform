@@ -511,3 +511,177 @@ hundreds of models; the interactive docs site (`tasks.py dbt-docs`) remains the 
 comment, so an analyst in DBeaver or psql sees the same documentation as the docs site, including
 the grain and the partial-month rule. Verified on tables, views and columns. **Trade-off:** each
 build issues extra `COMMENT ON` statements, which is negligible here.
+
+---
+
+## Orchestrating the warehouse
+
+### 51. Dagster runs dbt: ingestion and the warehouse are one asset graph
+
+**Context.** dbt ran only when someone typed `dbt-build`. Two consequences: the snapshot missed
+revisions made between runs (#48), and, more importantly, the marts a dashboard reads went stale
+while every freshness check on `raw` stayed green.
+
+**Decision.** `dagster-dbt` turns every dbt model, seed and snapshot into a Dagster asset and every
+dbt test into an asset check. A custom translator maps dbt's sources onto the ingestion assets that
+write them (`raw.fuel_price_weekly` is `fuel_prices_raw`), so the graph is one piece from the API
+call to `marts/fct_fuel_vs_transport_cpi`. Each ingestion job keeps its name and schedule but now
+selects its source plus everything downstream, so the warehouse refreshes in the same run, coupled
+by data rather than by the clock. `dbt_build_job` (`tasks.py materialize warehouse`) builds the
+whole warehouse, needed once on a fresh database where seeds do not exist yet.
+
+**Details that mattered.**
+- dbt uses the pipeline resource's own database URL, set only while the dbt process starts, so
+  dbt and the Python loader cannot point at different databases.
+- The code location is lazy (`@dg.definitions`), so importing the module never needs a dbt
+  manifest; the Dagster tasks in `tasks.py` run `dbt parse` first. Without this, every existing
+  orchestration test failed on machines without dbt.
+- `dagster-dbt` pins Dagster exactly, so the two always move together; it supports dbt-core below
+  1.13 through an extra this project does not install, so that bound is now stated in our own
+  `pyproject.toml`.
+- No retry on the dbt step: a failed dbt test is deterministic (#20).
+- **Found on the first real run, on Windows:** dagster-dbt looks for a program called `dbt` on
+  PATH. `python tasks.py` starts the venv's Python directly without activating the venv, so the
+  folder holding `dbt.exe` was not on PATH and the run stopped before doing anything. Every test
+  and CI step had passed because they all used `uv run`, which puts that folder on PATH. The
+  resource now points at the `dbt` program beside the running Python, a regression test empties
+  PATH and builds it, and CI's `validate` steps run plain `python tasks.py`, as the README does.
+  **Lesson:** test the command the way users run it, not the way it is convenient to run in CI.
+
+**Tested** with real Dagster, dbt and Postgres: a revised RON95 price went through gate, load,
+staging, the snapshot (two versions, old one closed) and the mart in one run, and a failing dbt
+test failed the run. With the downstream selection removed, the test fails. A first version of the
+test passed once and then failed on a re-run, because a snapshot is cumulative and the fixture only
+emptied `raw`; each test now starts from an empty warehouse.
+
+**Trade-off.** A dbt failure now marks the ingestion run failed even though the data loaded
+correctly; the raw load is kept, and the dbt assets can be re-run alone from the UI. The dbt step
+adds about 10 seconds to a fuel run (measured on the sample data: 6.5 s inside dbt, the rest dbt
+starting up; real history is larger). The definitions also need a manifest to load.
+
+### 52. Dagster, not Airflow (recorded after the fact)
+
+The roadmap's Tier 2 names Airflow; Phase 2 chose Dagster, and the reason was not written down at
+the time. This entry reconstructs the case from how the project actually uses it.
+
+**For Dagster here.** It installs with pip and runs natively on Windows, where this project is
+developed and where CI validates it; Airflow needs Docker or WSL2 on Windows. Local setup is one
+command (`tasks.py dagster`) instead of a scheduler, webserver and metadata database. Blocking
+asset checks are what implement the quality gate (#21). Its asset model describes data, so "what
+is stale" and "refresh everything downstream" (#51) are built in.
+
+**For Airflow.** It is far more common in job descriptions; managed services (AWS MWAA, Google
+Cloud Composer) are Airflow, and the roadmap's Tier 5 uses them; its ecosystem is larger. The core
+ideas transfer directly: schedules, retries, idempotent tasks, backfills, sensors (README table).
+
+**Plan.** Keep Dagster here. Learn Airflow hands-on in Tier 5 by rebuilding a pipeline on managed
+Airflow, where it is the natural tool. **Lesson:** write the reason down when the choice is made;
+reconstructing it later is weaker evidence than a decision recorded at the time.
+
+### 53. A copied price series fails a quality rule, unless it has been reviewed
+
+**Found on real data.** From 1 October 2026, `diesel_eastmsia` carried exactly the peninsular
+`diesel` price every week: RM5.27, 5.27, 5.17, 5.07 and 5.27. The range check (RM0.50 to RM10.00)
+accepted every value, and the week-on-week warning caught only the first jump from RM2.15. Nothing
+caught the repetition itself. The pipeline recorded what the publisher returned, and the snapshot
+kept the earlier RM2.15 version, so the history is traceable.
+
+**Decision.** `int_fuel_identical_runs` lists every run of consecutive shared announcements in which
+two fuel types carry the same price. A singular test, `assert_no_unreviewed_identical_fuel_runs`,
+fails for any run of at least three announcements whose first date has no reviewed event in
+`fuel_price_events.csv` for either fuel or for every fuel. The threshold is the variable
+`identical_run_min_announcements` (default 3).
+
+**Why a reviewed event, not a plain rule.** Two fuels were legitimately identical in 2018: diesel
+and East Malaysia diesel were both RM2.18 for five announcements while prices were frozen. That is
+already in the data, so a rule with no exception fails on history. The 2018 freeze starts on a date
+already reviewed as a schedule change, so the run is accepted. The same mechanism applies to any
+future legitimate match, and the review stays in version control.
+
+**Severity: error, but it does not stop the dashboard.** A failing dbt test fails the Dagster run,
+which sends the failure alert. The assets still materialise before checks run, so the mart refreshes.
+An end-to-end test proves both: the run fails, and `marts/fct_fuel_vs_transport_cpi` is rebuilt in
+the same run. A copied series is not published as a real value, but one bad series must not freeze
+the dashboard.
+
+**What it was tested against.**
+- Clean synthetic sample: the rule stays silent (217 of 217).
+- The incident reproduced: exactly one run is found, starting 15 October with three announcements.
+- Unit tests on the model: two identical runs separated by a different price are two runs; a
+  reviewed 2018 run is marked reviewed and an unreviewed 2026 run is not.
+- Sabotage: with the threshold set to 99, the end-to-end test fails with no check failing, so it
+  does test the rule.
+
+**Trade-offs.**
+- **A legitimate identical price will alert** until someone reviews it. That is the cost of a rule
+  that does not depend on knowing the answer in advance.
+- **A missing announcement does not break a run.** The first version of the model merged a 2018
+  run with a 2026 run, because nothing differed between them. A stretch where one fuel has no
+  announcements counts as consecutive. Real history has many differing weeks between the two, so
+  this does not affect current results, but it is a choice, and the unit tests record it.
+- **The first build on your real data may show other historical runs** we have not seen. Each one
+  needs the same decision: a real freeze gets a reviewed event; an error goes to the publisher.
+- **The range check is still too wide for this.** A per-fuel band would not have caught this
+  either: diesel itself trades around RM5.27, so the value sits inside a sensible band. Only the
+  repetition gives it away, which is why this is a separate rule. Narrower bands are a later
+  improvement.
+
+**Action for the publisher.** Report the `diesel_eastmsia` values for the weeks of 1 to 29 October
+2026 to data.gov.my, with the table from this decision as evidence.
+
+### 53a. Status at Phase 3 close
+
+**Real-data findings, not reviewed.** The rule reports three runs on the real data:
+
+1. `diesel` and `diesel_eastmsia` identical from 30 March 2017 to 6 June 2024 (359 announcements).
+   A seven-year match is either a genuine shared price or a copied column, and it has not been
+   checked against published weeks. The June 2024 event in the seed (East Malaysia diesel did not
+   take the peninsular jump) is consistent with the run ending on 6 June.
+2. `diesel_eastmsia` and `diesel_skds` identical from 10 June 2024 to 24 September 2026 (121
+   announcements). Possibly two subsidy schemes sharing a price; not checked against the scheme
+   definitions.
+3. `diesel` and `diesel_eastmsia` identical from 1 October to 29 October 2026 (5 announcements).
+   The incident in #53. For two years `diesel_eastmsia` followed `diesel_skds`; from 1 October it
+   follows peninsular `diesel`. A change of matching partner is the clearest sign of a column
+   problem rather than a market move.
+
+No reviewed events were recorded for these runs, and no report was made to the publisher. The
+rule fails until someone resolves them, which is the intended behaviour of an unreviewed run.
+
+**Known gap, not fixed.** The review check matches a run by its start date. If a reviewed run
+later grows, the new announcements are accepted silently, because the start date does not change.
+Run 1 shows the same problem in miniature: 2018 is inside a run that starts in 2017. The fix is a
+review that covers a span (a fuel pair, a start date and a reviewed end date), so any extension
+fails until it is reviewed. It was not built, because it changes what a review means and that
+change was not agreed for this phase. It should be the first change to the rule when work resumes.
+
+**Phase 3 scope at close.** The warehouse (staging, intermediate, marts, snapshot, lineage,
+persisted docs), its checks, and its orchestration in Dagster are complete and tested on the
+synthetic sample. The real-data findings above are open and documented; the rule is a working
+detector, not a resolved data-quality question.
+
+### 54. The plain-pip install path is tested on its own, and it pins the transitive gRPC package
+
+**Found by the CI pip-fallback job, which failed on Ubuntu and Windows while every uv job passed.**
+Plain pip has no lockfile, so it resolved the newest `grpcio-health-checking` (1.85.1). That release
+is generated against protobuf 7, while the stack runs protobuf 6.33.6. Importing dagster then fails
+with a protobuf version error, so the whole orchestration test module could not be collected.
+
+**Decision.** State the bound the lockfile already uses: `grpcio-health-checking>=1.81.1,<1.82`. The
+uv lock gains two metadata lines and no pinned version changes. Upgrading to protobuf 7 instead was
+rejected: it is shared with the dbt packages and is a larger change than this failure justifies.
+
+**What this shows.** A lockfile hides resolver drift. Every uv job tested exact versions, so the
+newest-version problem could not appear there. The pip job is the only one that sees what a user
+who does not use uv gets, and it must stay green.
+
+**Two mistakes made while diagnosing it, recorded because they would repeat.**
+- My first reproduction installed only the dev group. CI's `setup --pip` installs the dbt group too,
+  and the missing `dbt` program produced a failure that was not the real one. A reproduction must
+  match the CI command exactly, including every group.
+- Protobuf's error names the gencode version, which points at the cause directly. Reading the
+  error before guessing saved a change to the wrong package.
+
+**Not verified.** The Windows pip job runs on GitHub and has not been run here. The Ubuntu and
+Windows pip environments resolve the same packages, so the result should match, but the CI run is
+the test.

@@ -10,10 +10,14 @@ from croniter import croniter
 
 from col_pipeline.orchestration import alerts
 from col_pipeline.orchestration.assets import IngestConfig, _parse_since
-from col_pipeline.orchestration.definitions import build_definitions, defs
+from col_pipeline.orchestration.definitions import build_definitions
 from col_pipeline.orchestration.resources import PipelineResource
 from col_pipeline.orchestration.schedules import CADENCE, MONITOR_CRON, TIMEZONE
 from col_pipeline.sources import SOURCES
+
+# The ingestion definitions, built directly. The production code location (definitions.defs)
+# is lazy and also contains the dbt warehouse; that wiring is tested in test_dbt_orchestration.py.
+defs = build_definitions()
 
 KL = ZoneInfo(TIMEZONE)
 

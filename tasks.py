@@ -204,23 +204,38 @@ def dagster_env() -> dict[str, str]:
     return {"DAGSTER_HOME": str(DAGSTER_HOME)}
 
 
+def prepare_dbt_manifest() -> int:
+    """Dagster reads the dbt models from dbt's manifest, so make sure it exists and is current.
+
+    Installs dbt packages the first time, then `dbt parse` (no database query; seconds).
+    """
+    if not dbt_packages_installed() and (code := run_dbt("deps")):
+        return code
+    return run_dbt("parse", "--quiet")
+
+
 @task
 def dagster(args: list[str]) -> int:
     """Start the Dagster UI and scheduler at http://localhost:3000 (Ctrl+C to stop)."""
-    return py("-m", "dagster", "dev", "-m", DAGSTER_MODULE, *args, env=dagster_env())
+    return prepare_dbt_manifest() or py(
+        "-m", "dagster", "dev", "-m", DAGSTER_MODULE, *args, env=dagster_env()
+    )
 
 
 @task
 def materialize(args: list[str]) -> int:
-    """Run an ingestion job once, headless: `materialize fuel_prices` (all sources if none)."""
+    """Run a job once, headless: `materialize fuel_prices`, or `warehouse` for the dbt build."""
     names = args or list(SOURCE_NAMES)
+    jobs = {**{n: f"{n}_job" for n in SOURCE_NAMES}, "warehouse": "dbt_build_job"}
     for name in names:
-        if name not in SOURCE_NAMES:
-            print(f"Unknown source {name!r}. Choose from: {', '.join(SOURCE_NAMES)}")
+        if name not in jobs:
+            print(f"Unknown job {name!r}. Choose from: {', '.join(jobs)}")
             return 2
+    if code := prepare_dbt_manifest():
+        return code
     for name in names:
         code = py("-m", "dagster", "job", "execute", "-m", DAGSTER_MODULE,
-                  "-j", f"{name}_job", env=dagster_env())  # fmt: skip
+                  "-j", jobs[name], env=dagster_env())  # fmt: skip
         if code:
             return code
     return 0
@@ -229,14 +244,16 @@ def materialize(args: list[str]) -> int:
 @task
 def monitor(args: list[str]) -> int:
     """Run the freshness monitor once: fails if any table has gone stale."""
-    return py("-m", "dagster", "job", "execute", "-m", DAGSTER_MODULE,
-              "-j", "quality_monitor_job", env=dagster_env())  # fmt: skip
+    return prepare_dbt_manifest() or py("-m", "dagster", "job", "execute", "-m", DAGSTER_MODULE,
+                                        "-j", "quality_monitor_job", env=dagster_env())  # fmt: skip
 
 
 @task
 def validate(args: list[str]) -> int:
-    """Check that Dagster can load every definition (CI runs this too)."""
-    return py("-m", "dagster", "definitions", "validate", "-m", DAGSTER_MODULE, env=dagster_env())
+    """Check that Dagster can load every definition, dbt included (CI runs this too)."""
+    return prepare_dbt_manifest() or py(
+        "-m", "dagster", "definitions", "validate", "-m", DAGSTER_MODULE, env=dagster_env()
+    )
 
 
 # ---------- dbt ----------
